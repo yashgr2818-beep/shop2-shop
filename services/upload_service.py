@@ -81,6 +81,32 @@ def upload_product_image_file(file_obj, manager_id, sku_or_id, local_image_folde
 
     return None, "No storage provider available for image"
 
+def upload_shop_qr_to_cloudinary(shop_slug, target_url):
+    """Uploads shop QR code directly to Cloudinary in the 'qrs' folder.
+    Returns: (secure_url, error_message)
+    """
+    if is_cloudinary_configured():
+        try:
+            init_cloudinary()
+            from services.qr_service import generate_qr_image_bytes
+            img_bytes = generate_qr_image_bytes(target_url)
+            clean_slug = re.sub(r'[^a-zA-Z0-9_-]', '_', str(shop_slug)).strip('_')
+
+            res = cloudinary.uploader.upload(
+                img_bytes,
+                folder="qrs",
+                public_id=f"qr_{clean_slug}",
+                overwrite=True,
+                resource_type="image"
+            )
+            secure_url = res.get('secure_url') or res.get('url')
+            if secure_url:
+                return secure_url, None
+        except Exception as e:
+            print(f"Cloudinary QR upload error: {e}")
+            return None, str(e)
+    return None, "Cloudinary is not configured"
+
 def generate_next_sku(db, manager_id):
     """Generates the next sequential SKU for the manager, e.g. SKU-1-001, SKU-1-002.
     Finds the highest current sequence number and increments continuously.

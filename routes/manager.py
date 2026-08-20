@@ -84,21 +84,14 @@ def inject_staff_shop_context():
 
     db = get_db()
     current_shop = db.execute(
-        'SELECT manager_id, shop_name, shop_slug, email FROM tbl_managers WHERE manager_id = ?',
+        'SELECT manager_id, shop_name, shop_slug, email, qr_image_url FROM tbl_managers WHERE manager_id = ?',
         (manager_id,)
     ).fetchone()
 
     if not current_shop:
         return {'current_shop': None, 'current_shop_qr': None, 'logged_account': None}
 
-    # Ensure QR exists (lazy-generate, no blocking)
-    qr_file = f"{current_shop['shop_slug']}.png"
-    qr_path = os.path.join(current_app.config['QR_FOLDER'], qr_file)
-    if not os.path.exists(qr_path):
-        try:
-            generate_shop_qr(current_shop['shop_slug'], current_app.config['QR_FOLDER'])
-        except Exception:
-            pass
+    qr_display = current_shop['qr_image_url'] if current_shop.get('qr_image_url') else f"/shop/{current_shop['shop_slug']}/qr.png"
 
     if session.get('is_staff'):
         staff_role = session.get('staff_role', 'Order_Only')
@@ -114,6 +107,7 @@ def inject_staff_shop_context():
             'badge_class':   _ROLE_BADGE.get(staff_role, ''),
             'shop_name':     current_shop['shop_name'],
             'shop_slug':     current_shop['shop_slug'],
+            'qr_image_url':  qr_display,
         }
     else:
         logged_account = {
@@ -127,11 +121,12 @@ def inject_staff_shop_context():
             'badge_class':   'bg-emerald-100 text-emerald-900 border-emerald-300',
             'shop_name':     current_shop['shop_name'],
             'shop_slug':     current_shop['shop_slug'],
+            'qr_image_url':  qr_display,
         }
 
     return {
         'current_shop':     current_shop,
-        'current_shop_qr':  qr_file,
+        'current_shop_qr':  qr_display,
         'logged_account':   logged_account,
     }
 
@@ -161,13 +156,19 @@ def register():
         if error is None:
             db = get_db()
             try:
+                from services.upload_service import upload_shop_qr_to_cloudinary
+                from services.qr_service import get_shop_base_url
+                base_url = get_shop_base_url(request)
+                scan_url = f"{base_url}/scan/{shop_slug}"
+                qr_cloud_url, _ = upload_shop_qr_to_cloudinary(shop_slug, scan_url)
+
                 db.execute(
-                    "INSERT INTO tbl_managers (shop_name, shop_slug, email, password_hash, phone_number) "
-                    "VALUES (?, ?, ?, ?, ?)",
-                    (shop_name, shop_slug, email, generate_password_hash(password), phone_number),
+                    "INSERT INTO tbl_managers (shop_name, shop_slug, email, password_hash, phone_number, qr_image_url) "
+                    "VALUES (?, ?, ?, ?, ?, ?)",
+                    (shop_name, shop_slug, email, generate_password_hash(password), phone_number, qr_cloud_url),
                 )
                 db.commit()
-                generate_shop_qr(shop_slug, current_app.config['QR_FOLDER'])
+                generate_shop_qr(shop_slug, current_app.config['QR_FOLDER'], base_url)
             except (sqlite3.IntegrityError, ValueError) as e:
                 error = (f"Shop name '{shop_name}' is already taken."
                          if 'shop_slug' in str(e)
@@ -319,8 +320,18 @@ def dashboard():
     shop_url  = f"{shop_base_url}/shop/{manager['shop_slug']}"
     scan_url  = f"{shop_base_url}/scan/{manager['shop_slug']}"
 
-    # Synchronize QR code file with active host/domain
+    # Synchronize QR code file with active host/domain and Cloudinary
     qr_filename = f"{manager['shop_slug']}.png"
+    if not manager.get('qr_image_url'):
+        try:
+            from services.upload_service import upload_shop_qr_to_cloudinary
+            qr_cloud_url, _ = upload_shop_qr_to_cloudinary(manager['shop_slug'], scan_url)
+            if qr_cloud_url:
+                db.execute('UPDATE tbl_managers SET qr_image_url = ? WHERE manager_id = ?', (qr_cloud_url, manager_id))
+                db.commit()
+                manager = db.execute('SELECT * FROM tbl_managers WHERE manager_id = ?', (manager_id,)).fetchone()
+        except Exception:
+            pass
     try:
         generate_shop_qr(manager['shop_slug'], current_app.config['QR_FOLDER'], shop_base_url)
     except Exception:

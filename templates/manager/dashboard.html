@@ -56,7 +56,7 @@
 
         <div class="relative group cursor-pointer" onclick="openPrintModal()">
             <div class="p-3 bg-white border-2 border-slate-100 rounded-2xl shadow-md group-hover:shadow-lg transition-all group-hover:scale-105">
-                <img src="{{ url_for('shop.shop_qr_image', shop_slug=manager.shop_slug) }}" alt="Shop QR Code" class="w-44 h-44 object-contain">
+                <img src="{{ manager.qr_image_url or url_for('shop.shop_qr_image', shop_slug=manager.shop_slug) }}" alt="Shop QR Code" class="w-44 h-44 object-contain">
             </div>
             <div class="absolute inset-0 bg-black/40 rounded-2xl opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-white text-xs font-bold gap-1">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
@@ -80,7 +80,7 @@
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>
                     <span id="copyBtnText">Copy Link</span>
                 </button>
-                <a href="{{ url_for('shop.shop_qr_image', shop_slug=manager.shop_slug) }}" download="{{ manager.shop_slug }}-qr.png" class="flex items-center justify-center gap-1.5 py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-all border border-slate-200">
+                <a href="{{ manager.qr_image_url or url_for('shop.shop_qr_image', shop_slug=manager.shop_slug) }}" download="{{ manager.shop_slug }}-qr.png" class="flex items-center justify-center gap-1.5 py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-all border border-slate-200">
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
                     Download QR
                 </a>
@@ -441,7 +441,7 @@
 <script>
 const shopUrl = "{{ shop_url }}";
 const shopName = "{{ manager.shop_name }}";
-const qrImgSrc = "{{ url_for('shop.shop_qr_image', shop_slug=manager.shop_slug) }}";
+const qrImgSrc = "{{ manager.qr_image_url or url_for('shop.shop_qr_image', shop_slug=manager.shop_slug) }}";
 
 function copyShopLink() {
     navigator.clipboard.writeText(shopUrl).then(() => {
@@ -586,7 +586,7 @@ function closeImageModal() {
 
         <div class="py-5 text-center">
             <div class="p-3 bg-white border-2 border-slate-100 rounded-2xl shadow-inner inline-block mb-3">
-                <img src="{{ url_for('shop.shop_qr_image', shop_slug=manager.shop_slug) }}" alt="QR Code" class="w-36 h-36 mx-auto object-contain">
+                <img src="{{ manager.qr_image_url or url_for('shop.shop_qr_image', shop_slug=manager.shop_slug) }}" alt="QR Code" class="w-36 h-36 mx-auto object-contain">
             </div>
             <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200 flex items-center justify-between gap-2 text-xs">
                 <span class="font-mono text-slate-600 truncate text-left">{{ shop_url }}</span>
@@ -606,7 +606,7 @@ function closeImageModal() {
                     <svg class="w-4 h-4 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
                     Print Standee
                 </button>
-                <a href="{{ url_for('shop.shop_qr_image', shop_slug=manager.shop_slug) }}" download="{{ manager.shop_slug }}-qr.png" class="flex items-center justify-center gap-1.5 py-2.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold transition-all border border-slate-200">
+                <a href="{{ manager.qr_image_url or url_for('shop.shop_qr_image', shop_slug=manager.shop_slug) }}" download="{{ manager.shop_slug }}-qr.png" class="flex items-center justify-center gap-1.5 py-2.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold transition-all border border-slate-200">
                     <svg class="w-4 h-4 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
                     Save QR (PNG)
                 </a>
@@ -631,7 +631,7 @@ function closeImageModal() {
             </div>
 
             <div class="my-5 p-4 bg-white rounded-2xl border-2 border-slate-900/10 shadow-lg inline-block">
-                <img src="{{ url_for('shop.shop_qr_image', shop_slug=manager.shop_slug) }}" alt="Store QR Code" class="w-56 h-56 mx-auto object-contain">
+                <img src="{{ manager.qr_image_url or url_for('shop.shop_qr_image', shop_slug=manager.shop_slug) }}" alt="Store QR Code" class="w-56 h-56 mx-auto object-contain">
             </div>
 
             <div class="space-y-2 mt-2">

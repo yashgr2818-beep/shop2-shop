@@ -270,6 +270,8 @@ def init_db(app):
             cursor.execute("ALTER TABLE tbl_managers ADD COLUMN show_price INTEGER DEFAULT 1")
         if 'secure_url_mode' not in cols_mgr:
             cursor.execute("ALTER TABLE tbl_managers ADD COLUMN secure_url_mode INTEGER DEFAULT 0")
+        if 'qr_image_url' not in cols_mgr:
+            cursor.execute("ALTER TABLE tbl_managers ADD COLUMN qr_image_url TEXT")
 
         db.commit()
 

@@ -10,7 +10,8 @@ CREATE TABLE IF NOT EXISTS tbl_managers (
     price_mandatory INTEGER DEFAULT 1,
     bulk_upload_enabled INTEGER DEFAULT 1,
     show_price INTEGER DEFAULT 1,
-    secure_url_mode INTEGER DEFAULT 0
+    secure_url_mode INTEGER DEFAULT 0,
+    qr_image_url TEXT
 );
 
 CREATE TABLE IF NOT EXISTS tbl_blocked_ips (
