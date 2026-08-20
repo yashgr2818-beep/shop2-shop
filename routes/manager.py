@@ -528,21 +528,16 @@ def add_product():
 
         image_path = 'placeholder.jpg'
         
-        # Handle Image
+        # Handle Image (Cloudinary / Local)
         if 'image' in request.files:
             file = request.files['image']
             if file and file.filename != '':
-                try:
-                    img = Image.open(file.stream)
-                    if img.mode in ('RGBA', 'P'):
-                        img = img.convert('RGB')
-                    img.thumbnail((800, 800))
-                    new_filename = f"{manager_id}_{sku}.jpg"
-                    save_path = os.path.join(current_app.config['IMAGE_FOLDER'], new_filename)
-                    img.save(save_path, format="JPEG", quality=85)
-                    image_path = new_filename
-                except Exception as e:
-                    flash(f"Warning: Image failed to process: {e}", "error")
+                from services.upload_service import upload_product_image_file
+                img_res, err = upload_product_image_file(file.stream, manager_id, sku, current_app.config['IMAGE_FOLDER'])
+                if img_res:
+                    image_path = img_res
+                elif err:
+                    flash(f"Warning: Image upload issue: {err}", "error")
 
         try:
             db.execute(
@@ -596,17 +591,12 @@ def edit_product(product_id):
         if 'image' in request.files:
             file = request.files['image']
             if file and file.filename != '':
-                try:
-                    img = Image.open(file.stream)
-                    if img.mode in ('RGBA', 'P'):
-                        img = img.convert('RGB')
-                    img.thumbnail((800, 800))
-                    new_filename = f"{manager_id}_{sku}.jpg"
-                    save_path = os.path.join(current_app.config['IMAGE_FOLDER'], new_filename)
-                    img.save(save_path, format="JPEG", quality=85)
-                    image_path = new_filename
-                except Exception as e:
-                    flash(f"Warning: Image failed to process: {e}")
+                from services.upload_service import upload_product_image_file
+                img_res, err = upload_product_image_file(file.stream, manager_id, sku, current_app.config['IMAGE_FOLDER'])
+                if img_res:
+                    image_path = img_res
+                elif err:
+                    flash(f"Warning: Image upload issue: {err}", "error")
 
         try:
             db.execute(

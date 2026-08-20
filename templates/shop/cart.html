@@ -31,7 +31,7 @@
             <div class="space-y-3">
                 {% for item in cart_items %}
                 <div class="glass-card rounded-2xl p-3 flex gap-4 items-center" id="cart-item-{{ item.product_id }}">
-                    <img src="{{ url_for('static', filename='images/' + item.image_path) }}" class="w-16 h-16 rounded-xl object-cover bg-slate-100">
+                    <img src="{{ item.image_path|image_url }}" class="w-16 h-16 rounded-xl object-cover bg-slate-100">
                     <div class="flex-grow">
                         <h3 class="font-semibold text-slate-800 text-sm leading-tight line-clamp-1">{{ item.name }}</h3>
                         <p class="font-bold text-slate-900 text-sm mt-1">₹{{ "{:,.0f}".format(item.price_inr) }}</p>

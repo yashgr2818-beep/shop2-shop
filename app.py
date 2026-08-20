@@ -43,6 +43,16 @@ def create_app(test_config=None):
     app.register_blueprint(shop.bp)
     app.register_blueprint(admin.bp)
 
+    @app.template_filter('image_url')
+    def image_url_filter(image_path):
+        if not image_path or image_path == 'placeholder.jpg':
+            return url_for('static', filename='images/placeholder.jpg')
+        if image_path.startswith('http://') or image_path.startswith('https://'):
+            return image_path
+        return url_for('static', filename='images/' + image_path)
+
+    app.jinja_env.globals['image_url'] = image_url_filter
+
     @app.before_request
     def check_blocked_ip():
         from services.qr_service import get_client_ip

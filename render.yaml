@@ -13,3 +13,11 @@ services:
         value: libsql://shop-yashyash.aws-ap-south-1.turso.io
       - key: TURSO_AUTH_TOKEN
         sync: false
+      - key: CLOUDINARY_CLOUD_NAME
+        value: mhtvnxwl
+      - key: CLOUDINARY_API_KEY
+        value: 971758454512911
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      - key: CLOUDINARY_URL
+        sync: false

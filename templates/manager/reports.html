@@ -96,7 +96,7 @@
                 <tr class="hover:bg-slate-50 transition-colors">
                     <td class="px-6 py-4 whitespace-nowrap">
                         <div class="flex items-center">
-                            <img class="h-10 w-10 rounded-lg object-cover bg-slate-100" src="{{ url_for('static', filename='images/' + p.image_path) }}" alt="">
+                            <img class="h-10 w-10 rounded-lg object-cover bg-slate-100" src="{{ p.image_path|image_url }}" alt="">
                             <div class="ml-4">
                                 <div class="text-sm font-semibold text-slate-900">{{ p.name }}</div>
                             </div>

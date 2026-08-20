@@ -324,9 +324,9 @@
                 <tr>
                     <td class="px-6 py-4 whitespace-nowrap">
                         <div class="flex-shrink-0 h-10 w-10">
-                            {% if product.image_path != 'placeholder.jpg' %}
+                            {% if product.image_path and product.image_path != 'placeholder.jpg' %}
                             <img class="h-10 w-10 rounded-md object-cover cursor-pointer transition-all duration-200 hover:scale-125 hover:shadow-lg hover:ring-2 hover:ring-blue-500"
-                                 src="{{ url_for('static', filename='images/' + product.image_path) }}"
+                                 src="{{ product.image_path|image_url }}"
                                  alt="{{ product.name }}"
                                  onclick="openImageModal(this.src, '{{ product.name }}')"
                                  title="Click to view full image">

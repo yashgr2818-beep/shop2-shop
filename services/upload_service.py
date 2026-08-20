@@ -5,6 +5,75 @@ from PIL import Image
 from database import get_db
 from werkzeug.utils import secure_filename
 import io
+import cloudinary
+import cloudinary.uploader
+
+def is_cloudinary_configured():
+    """Check if Cloudinary credentials or CLOUDINARY_URL are configured."""
+    url = os.environ.get('CLOUDINARY_URL')
+    cloud_name = os.environ.get('CLOUDINARY_CLOUD_NAME')
+    api_key = os.environ.get('CLOUDINARY_API_KEY')
+    api_secret = os.environ.get('CLOUDINARY_API_SECRET')
+    return bool((url and url.strip()) or (cloud_name and api_key and api_secret))
+
+def init_cloudinary():
+    """Initialize Cloudinary SDK config."""
+    if is_cloudinary_configured():
+        url = os.environ.get('CLOUDINARY_URL')
+        if url and url.strip():
+            cloudinary.config(cloudinary_url=url.strip())
+        else:
+            cloudinary.config(
+                cloud_name=os.environ.get('CLOUDINARY_CLOUD_NAME').strip(),
+                api_key=os.environ.get('CLOUDINARY_API_KEY').strip(),
+                api_secret=os.environ.get('CLOUDINARY_API_SECRET').strip(),
+                secure=True
+            )
+
+def upload_product_image_file(file_obj, manager_id, sku_or_id, local_image_folder=None):
+    """Uploads a product image to Cloudinary (preferred) or saves locally as fallback.
+    Returns: (image_path_or_url, error_message)
+    """
+    # 1. Try Cloudinary first
+    if is_cloudinary_configured():
+        try:
+            init_cloudinary()
+            clean_id = re.sub(r'[^a-zA-Z0-9_-]', '_', str(sku_or_id)).strip('_')
+            res = cloudinary.uploader.upload(
+                file_obj,
+                folder=f"shops/{manager_id}/products",
+                public_id=f"prod_{clean_id}",
+                overwrite=True,
+                resource_type="image",
+                transformation=[
+                    {'width': 800, 'height': 800, 'crop': 'limit'},
+                    {'quality': 'auto', 'fetch_format': 'auto'}
+                ]
+            )
+            secure_url = res.get('secure_url') or res.get('url')
+            if secure_url:
+                return secure_url, None
+        except Exception as e:
+            print(f"Cloudinary upload error: {e}. Falling back to local storage.")
+            if hasattr(file_obj, 'seek'):
+                file_obj.seek(0)
+    
+    # 2. Local fallback if Cloudinary is not configured or fails
+    if local_image_folder:
+        try:
+            img = Image.open(file_obj)
+            if img.mode in ('RGBA', 'P'):
+                img = img.convert('RGB')
+            img.thumbnail((800, 800))
+            clean_id = re.sub(r'[^a-zA-Z0-9_-]', '_', str(sku_or_id)).strip('_')
+            new_filename = f"{manager_id}_{clean_id}.jpg"
+            save_path = os.path.join(local_image_folder, new_filename)
+            img.save(save_path, format="JPEG", quality=85)
+            return new_filename, None
+        except Exception as e:
+            return None, f"Image processing failed: {str(e)}"
+            
+    return None, "No storage provider available for image"
 
 def generate_next_sku(db, manager_id):
     """Generates the next sequential SKU for the manager, e.g. SKU-1-001, SKU-1-002.
@@ -124,30 +193,16 @@ def process_image_upload(file, manager_id, image_folder):
     if not product:
         return False, f"No matching product found for: {file_identifier}"
         
-    # Process image with Pillow
-    try:
-        img = Image.open(file.stream)
+    # Upload via unified image uploader (Cloudinary / local fallback)
+    img_result, err = upload_product_image_file(file.stream, manager_id, product['sku'], image_folder)
+    if err or not img_result:
+        return False, err or "Failed to upload image"
         
-        # Convert to RGB if it's RGBA or P
-        if img.mode in ('RGBA', 'P'):
-            img = img.convert('RGB')
-            
-        # Resize/Compress
-        img.thumbnail((800, 800))
-        
-        # Save compressed image
-        new_filename = f"{manager_id}_{product['sku']}.jpg"
-        save_path = os.path.join(image_folder, new_filename)
-        img.save(save_path, format="JPEG", quality=85)
-        
-        # Update DB
-        db.execute(
-            "UPDATE tbl_products SET image_path = ? WHERE product_id = ?",
-            (new_filename, product['product_id'])
-        )
-        db.commit()
-        
-        return True, f"Image attached to {product['sku']}"
-    except Exception as e:
-        return False, f"Image processing failed: {str(e)}"
-
+    # Update DB
+    db.execute(
+        "UPDATE tbl_products SET image_path = ? WHERE product_id = ?",
+        (img_result, product['product_id'])
+    )
+    db.commit()
+    
+    return True, f"Image attached to {product['sku']}"

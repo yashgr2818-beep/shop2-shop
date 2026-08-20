@@ -59,9 +59,9 @@
             <div class="glass rounded-2xl shadow-sm overflow-hidden flex flex-col group">
                 <!-- Image -->
                 <div class="aspect-square bg-slate-100 relative overflow-hidden">
-                    {% if product.image_path != 'placeholder.jpg' %}
+                    {% if product.image_path and product.image_path != 'placeholder.jpg' %}
                         <img class="w-full h-full object-cover cursor-pointer transition-transform duration-300 group-hover:scale-110 {{ 'grayscale-img' if product.stock_qty == 0 else '' }}"
-                             src="{{ url_for('static', filename='images/' + product.image_path) }}"
+                             src="{{ product.image_path|image_url }}"
                              alt="{{ product.name }}"
                              onclick="openImageModal(this.src, '{{ product.name }}')"
                              title="Click to zoom">

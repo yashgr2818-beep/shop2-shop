@@ -22,8 +22,8 @@
                 <label class="block text-sm font-medium text-slate-700 mb-2">Product Image</label>
                 <div class="flex items-center space-x-6">
                     <div class="flex-shrink-0">
-                        {% if product.image_path != 'placeholder.jpg' %}
-                            <img src="{{ url_for('static', filename='images/' + product.image_path) }}" 
+                        {% if product.image_path and product.image_path != 'placeholder.jpg' %}
+                            <img src="{{ product.image_path|image_url }}" 
                                  class="h-20 w-20 object-cover rounded-xl border border-slate-200 shadow-sm" alt="Current product image">
                         {% else %}
                             <div class="h-20 w-20 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400">

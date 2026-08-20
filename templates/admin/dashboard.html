@@ -215,8 +215,8 @@
                                                 {% for product in mgr_products %}
                                                 <tr class="hover:bg-blue-100/40 transition-colors {% if product.status == 'Suspended' %}opacity-60{% endif %}">
                                                     <td class="px-8 py-2">
-                                                        {% if product.image_path != 'placeholder.jpg' %}
-                                                            <img src="{{ url_for('static', filename='images/' + product.image_path) }}"
+                                                        {% if product.image_path and product.image_path != 'placeholder.jpg' %}
+                                                            <img src="{{ product.image_path|image_url }}"
                                                                  class="h-10 w-10 object-cover rounded-md cursor-pointer hover:scale-125 hover:ring-2 hover:ring-blue-500 transition-all shadow-sm"
                                                                  alt="{{ product.name }}"
                                                                  onclick="openImageModal(this.src, '{{ product.name }}')"
