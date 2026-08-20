@@ -7,31 +7,46 @@
     <p class="text-slate-500 mt-1">Update stock quantities for all products in {{ manager.shop_name }}.</p>
 </div>
 
+<!-- Toast notification -->
+<div id="toast" class="fixed top-6 right-6 z-50 hidden">
+    <div id="toast-inner" class="px-5 py-3 rounded-xl shadow-lg text-sm font-semibold text-white flex items-center gap-2 transition-all">
+        <span id="toast-icon"></span>
+        <span id="toast-msg"></span>
+    </div>
+</div>
+
 <form action="{{ url_for('manager.bulk_stock') }}" method="POST">
     <div class="bg-white rounded-2xl shadow-xs border border-slate-200 overflow-hidden mb-6">
         <div class="px-6 py-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center sticky top-0 z-10">
-            <h3 class="text-lg font-bold text-slate-800">Inventory Stock Levels</h3>
+            <div>
+                <h3 class="text-lg font-bold text-slate-800">Inventory Stock Levels</h3>
+                <p class="text-xs text-slate-400 mt-0.5">Use <strong>Set Stock</strong> to set exact value &nbsp;|&nbsp; Use <strong>Quick Adjust</strong> to add (+5) or subtract (-3) from current stock</p>
+            </div>
             <button type="submit" class="px-5 py-2 bg-slate-900 text-white text-sm font-bold rounded-xl shadow-xs hover:bg-slate-800 transition-colors cursor-pointer">
                 Save All Changes
             </button>
         </div>
-        
-        <div class="overflow-x-auto max-h-[60vh] overflow-y-auto">
+
+        <div class="overflow-x-auto max-h-[65vh] overflow-y-auto">
             <table class="min-w-full divide-y divide-slate-200 relative">
                 <thead class="bg-slate-50 sticky top-0 shadow-xs z-20">
                     <tr>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">SKU</th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Product Name</th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Status</th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Stock Qty</th>
+                        <th scope="col" class="px-5 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">SKU</th>
+                        <th scope="col" class="px-5 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Product Name</th>
+                        <th scope="col" class="px-5 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Status</th>
+                        <th scope="col" class="px-5 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider w-28">Set Stock</th>
+                        <th scope="col" class="px-5 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider w-48">
+                            Quick Adjust
+                            <span class="ml-1 text-slate-400 font-normal normal-case">(+5 or −3, press Enter)</span>
+                        </th>
                     </tr>
                 </thead>
-                <tbody class="bg-white divide-y divide-slate-200">
+                <tbody class="bg-white divide-y divide-slate-200" id="stock-table-body">
                     {% for p in products %}
-                    <tr class="hover:bg-slate-50 transition-colors {% if p.stock_qty == 0 %}bg-rose-50/50{% endif %}">
-                        <td class="px-6 py-3.5 whitespace-nowrap text-sm text-slate-500 font-mono">{{ p.sku }}</td>
-                        <td class="px-6 py-3.5 whitespace-nowrap text-sm font-semibold text-slate-900">{{ p.name }}</td>
-                        <td class="px-6 py-3.5 whitespace-nowrap">
+                    <tr class="hover:bg-slate-50 transition-colors {% if p.stock_qty == 0 %}bg-rose-50/50{% endif %}" id="row-{{ p.product_id }}" data-product-id="{{ p.product_id }}">
+                        <td class="px-5 py-3.5 whitespace-nowrap text-sm text-slate-500 font-mono">{{ p.sku }}</td>
+                        <td class="px-5 py-3.5 whitespace-nowrap text-sm font-semibold text-slate-900">{{ p.name }}</td>
+                        <td class="px-5 py-3.5 whitespace-nowrap">
                             {% if p.status == 'Active' %}
                                 <span class="px-2.5 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-emerald-100 text-emerald-800">Active</span>
                             {% elif p.status == 'Suspended' %}
@@ -40,19 +55,134 @@
                                 <span class="px-2.5 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-slate-100 text-slate-800">Inactive</span>
                             {% endif %}
                         </td>
-                        <td class="px-6 py-3.5 whitespace-nowrap">
-                            <input type="number" min="0" name="stock_{{ p.product_id }}" value="{{ p.stock_qty }}" class="w-24 px-3 py-1.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-900 focus:outline-none font-semibold text-sm {% if p.stock_qty == 0 %}text-rose-600 border-rose-300 bg-rose-50{% endif %}">
+
+                        <!-- Set Stock (absolute value) -->
+                        <td class="px-5 py-3.5 whitespace-nowrap">
+                            <input
+                                type="number" min="0"
+                                name="stock_{{ p.product_id }}"
+                                id="set-{{ p.product_id }}"
+                                value="{{ p.stock_qty }}"
+                                class="w-24 px-3 py-1.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-900 focus:outline-none font-semibold text-sm
+                                       {% if p.stock_qty == 0 %}text-rose-600 border-rose-300 bg-rose-50{% endif %}"
+                                title="Set exact stock value"
+                            >
+                        </td>
+
+                        <!-- Quick Adjust (delta) -->
+                        <td class="px-5 py-3.5 whitespace-nowrap">
+                            <div class="flex items-center gap-2">
+                                <input
+                                    type="number"
+                                    id="adj-{{ p.product_id }}"
+                                    placeholder="e.g. +5 or -3"
+                                    class="w-32 px-3 py-1.5 border border-indigo-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none text-sm font-semibold text-indigo-700 bg-indigo-50 placeholder-indigo-300"
+                                    data-product-id="{{ p.product_id }}"
+                                    title="Enter +5 to add or -3 to subtract. Press Enter to apply."
+                                    onkeydown="if(event.key==='Enter'){event.preventDefault();applyAdjust({{ p.product_id }})}"
+                                >
+                                <button
+                                    type="button"
+                                    onclick="applyAdjust({{ p.product_id }})"
+                                    class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg transition-colors cursor-pointer"
+                                    title="Apply adjustment"
+                                >Apply</button>
+                                <span id="cur-{{ p.product_id }}" class="text-xs font-bold text-slate-600 min-w-[40px]">
+                                    {{ p.stock_qty }} pcs
+                                </span>
+                            </div>
                         </td>
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="4" class="px-6 py-10 text-center text-slate-500">No products found in your catalog.</td>
+                        <td colspan="5" class="px-6 py-10 text-center text-slate-500">No products found in your catalog.</td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
     </div>
-    
 </form>
+
+<script>
+function showToast(msg, success) {
+    const toast      = document.getElementById('toast');
+    const inner      = document.getElementById('toast-inner');
+    const msgEl      = document.getElementById('toast-msg');
+    const iconEl     = document.getElementById('toast-icon');
+    msgEl.textContent  = msg;
+    iconEl.textContent = success ? '✅' : '❌';
+    inner.className    = `px-5 py-3 rounded-xl shadow-lg text-sm font-semibold text-white flex items-center gap-2 ${success ? 'bg-emerald-600' : 'bg-rose-600'}`;
+    toast.classList.remove('hidden');
+    clearTimeout(toast._timer);
+    toast._timer = setTimeout(() => toast.classList.add('hidden'), 3000);
+}
+
+async function applyAdjust(productId) {
+    const adjInput = document.getElementById('adj-' + productId);
+    const setInput = document.getElementById('set-' + productId);
+    const curEl    = document.getElementById('cur-' + productId);
+
+    const deltaStr = adjInput.value.trim();
+    if (deltaStr === '' || deltaStr === '-' || deltaStr === '+') {
+        adjInput.focus();
+        showToast('Enter a value like +5 or -3', false);
+        return;
+    }
+
+    const delta = parseInt(deltaStr, 10);
+    if (isNaN(delta)) {
+        showToast('Invalid number', false);
+        return;
+    }
+
+    // Disable button while processing
+    adjInput.disabled = true;
+
+    try {
+        const resp = await fetch('{{ url_for("manager.adjust_stock") }}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ product_id: productId, delta: delta })
+        });
+
+        const data = await resp.json();
+
+        if (data.success) {
+            const newQty = data.new_qty;
+
+            // Update the "Set Stock" input to new value
+            setInput.value = newQty;
+
+            // Update the live display
+            curEl.textContent = newQty + ' pcs';
+
+            // Colour feedback based on qty
+            if (newQty === 0) {
+                setInput.className = setInput.className.replace('border-slate-300', 'border-rose-300').replace('text-slate-', 'text-rose-') + ' bg-rose-50';
+                curEl.className    = 'text-xs font-bold text-rose-600 min-w-[40px]';
+            } else {
+                curEl.className    = 'text-xs font-bold text-emerald-600 min-w-[40px]';
+            }
+
+            // Flash the adjustment input green then clear it
+            adjInput.classList.add('bg-emerald-50', 'border-emerald-400');
+            setTimeout(() => {
+                adjInput.classList.remove('bg-emerald-50', 'border-emerald-400');
+                adjInput.classList.add('bg-indigo-50', 'border-indigo-300');
+            }, 600);
+            adjInput.value = '';
+
+            showToast(`${data.name}: ${delta >= 0 ? '+' + delta : delta} → now ${newQty} pcs`, true);
+        } else {
+            showToast(data.error || 'Adjustment failed', false);
+        }
+    } catch (err) {
+        showToast('Network error. Try again.', false);
+    } finally {
+        adjInput.disabled = false;
+        adjInput.focus();
+    }
+}
+</script>
 {% endblock %}

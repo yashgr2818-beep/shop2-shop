@@ -1038,3 +1038,53 @@ def download_stock_report():
     resp = Response(output.getvalue(), mimetype='text/csv')
     resp.headers['Content-Disposition'] = f"attachment; filename={manager['shop_slug']}_stock_report.csv"
     return resp
+
+
+# ── Quick Adjust Stock (AJAX delta) ──────────────────────────────────────────
+@bp.route('/adjust_stock', methods=['POST'])
+def adjust_stock():
+    """AJAX endpoint: apply a +/- delta to product stock_qty.
+    Body JSON: { product_id: int, delta: int }
+    Response JSON: { success: bool, new_qty: int, name: str } or { error: str }
+    """
+    manager_id = session.get('manager_id')
+    if manager_id is None:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({'error': 'Invalid request'}), 400
+
+    try:
+        product_id = int(data.get('product_id', 0))
+        delta      = int(data.get('delta', 0))
+    except (ValueError, TypeError):
+        return jsonify({'error': 'Invalid parameters'}), 400
+
+    if delta == 0:
+        return jsonify({'error': 'Delta cannot be zero'}), 400
+
+    db      = get_db()
+    product = db.execute(
+        'SELECT product_id, name, stock_qty FROM tbl_products WHERE product_id = ? AND manager_id = ?',
+        (product_id, manager_id)
+    ).fetchone()
+
+    if not product:
+        return jsonify({'error': 'Product not found'}), 404
+
+    # Apply delta, clamp at 0 (stock cannot go negative)
+    new_qty = max(0, product['stock_qty'] + delta)
+    db.execute(
+        'UPDATE tbl_products SET stock_qty = ? WHERE product_id = ? AND manager_id = ?',
+        (new_qty, product_id, manager_id)
+    )
+    db.commit()
+
+    return jsonify({
+        'success': True,
+        'new_qty': new_qty,
+        'name':    product['name'],
+        'delta':   delta,
+    })
+
