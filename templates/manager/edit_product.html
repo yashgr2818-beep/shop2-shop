@@ -1,0 +1,120 @@
+{% extends 'base.html' %}
+{% block title %}Edit Product - {{ product.name }}{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto mt-6">
+    <div class="mb-6 flex items-center justify-between">
+        <div>
+            <h1 class="text-3xl font-bold text-slate-800">Edit Product</h1>
+            <p class="text-slate-500 mt-1">Update details for SKU: <span class="font-mono font-semibold text-slate-700">{{ product.sku }}</span></p>
+        </div>
+        <a href="{{ url_for('manager.dashboard') }}" class="text-slate-600 hover:text-slate-900 text-sm font-medium flex items-center gap-1">
+            ← Back to Dashboard
+        </a>
+    </div>
+
+    <div class="glass rounded-2xl shadow-xl overflow-hidden p-8 bg-white">
+        <form id="delete-product-form" method="POST" action="{{ url_for('manager.delete_product', product_id=product.product_id) }}" onsubmit="return confirm('Are you sure you want to delete &quot;{{ product.name }}&quot;?');"></form>
+        <form method="post" enctype="multipart/form-data" class="space-y-6">
+            
+            <!-- Current Image Preview & Upload New -->
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-2">Product Image</label>
+                <div class="flex items-center space-x-6">
+                    <div class="flex-shrink-0">
+                        {% if product.image_path != 'placeholder.jpg' %}
+                            <img src="{{ url_for('static', filename='images/' + product.image_path) }}" 
+                                 class="h-20 w-20 object-cover rounded-xl border border-slate-200 shadow-sm" alt="Current product image">
+                        {% else %}
+                            <div class="h-20 w-20 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400">
+                                <svg class="h-10 w-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                            </div>
+                        {% endif %}
+                    </div>
+                    <div class="flex-1">
+                        <input type="file" name="image" id="image" accept="image/*"
+                               class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 transition-colors">
+                        <p class="text-xs text-slate-400 mt-1">Leave empty to keep current image.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SKU & Name -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label for="sku" class="block text-sm font-medium text-slate-700 mb-1">SKU Code (Permanent ID)</label>
+                    <input type="text" name="sku" id="sku" value="{{ product.sku }}" readonly disabled
+                           class="w-full px-4 py-2.5 rounded-lg border border-slate-200 bg-slate-100 font-mono text-sm text-slate-600 cursor-not-allowed">
+                    <p class="text-xs text-slate-400 mt-1">System-assigned permanent identifier.</p>
+                </div>
+                <div>
+                    <label for="name" class="block text-sm font-medium text-slate-700 mb-1">Product Name <span class="text-red-500">*</span></label>
+                    <input type="text" name="name" id="name" value="{{ product.name }}" required
+                           class="w-full px-4 py-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm">
+                </div>
+            </div>
+
+            <!-- Price & Stock -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label for="price_inr" class="block text-sm font-medium text-slate-700 mb-1">
+                        Price (₹) {% if manager.price_mandatory %}<span class="text-red-500">*</span>{% endif %}
+                    </label>
+                    <input type="number" step="0.01" min="0" name="price_inr" id="price_inr" value="{{ product.price_inr }}"
+                           {% if manager.price_mandatory %}required{% endif %}
+                           class="w-full px-4 py-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm">
+                </div>
+                <div>
+                    <label for="stock_qty" class="block text-sm font-medium text-slate-700 mb-1">Stock Quantity <span class="text-red-500">*</span></label>
+                    <input type="number" min="0" name="stock_qty" id="stock_qty" value="{{ product.stock_qty }}" required
+                           class="w-full px-4 py-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm">
+                </div>
+            </div>
+
+            <!-- Status -->
+            <div>
+                <label for="status" class="block text-sm font-medium text-slate-700 mb-1">Catalog Visibility Status</label>
+                {% if product.status == 'Suspended' %}
+                    <div class="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 font-medium">
+                        ⛔ This product is currently <strong>Suspended by Super Admin</strong>. It cannot be set to Active until unsuspended.
+                    </div>
+                    <input type="hidden" name="status" value="Suspended">
+                {% else %}
+                    <select name="status" id="status"
+                            class="w-full px-4 py-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm bg-white">
+                        <option value="Active" {% if product.status == 'Active' %}selected{% endif %}>🟢 Active (Visible on shop catalog)</option>
+                        <option value="Inactive" {% if product.status == 'Inactive' %}selected{% endif %}>⚪ Inactive (Hidden from shop catalog)</option>
+                    </select>
+                {% endif %}
+            </div>
+
+            <!-- Description -->
+            <div>
+                <label for="description" class="block text-sm font-medium text-slate-700 mb-1">Description</label>
+                <textarea name="description" id="description" rows="3"
+                          class="w-full px-4 py-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                          placeholder="Optional product details...">{{ product.description }}</textarea>
+            </div>
+
+            <!-- Actions -->
+            <div class="flex items-center justify-between pt-4 border-t border-slate-100">
+                <button type="submit" form="delete-product-form"
+                        class="px-4 py-2.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-lg font-medium text-sm transition-colors inline-flex items-center gap-1.5 cursor-pointer">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                    Delete Product
+                </button>
+                <div class="flex items-center space-x-3">
+                    <a href="{{ url_for('manager.dashboard') }}"
+                       class="px-5 py-2.5 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 font-medium text-sm transition-colors">
+                        Cancel
+                    </a>
+                    <button type="submit"
+                            class="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium text-sm shadow-sm transition-colors">
+                        Save Changes
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Super Admin Dashboard – QR Catalog</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background:#f8fafc; }
+        .glass { background:rgba(255,255,255,0.85); backdrop-filter:blur(10px); border:1px solid rgba(255,255,255,0.4); }
+        .product-section { display:none; }
+        .product-section.open { display:table-row-group; }
+        .chevron { transition: transform 0.25s ease; }
+        .chevron.open { transform: rotate(180deg); }
+        tr.manager-row { cursor:pointer; }
+        tr.manager-row:hover td { background:#eff6ff; }
+    </style>
+</head>
+<body class="text-slate-800 antialiased min-h-screen flex flex-col">
+
+    <!-- Navbar -->
+    <nav class="bg-slate-900 border-b border-slate-700">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16 items-center">
+                <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
+                        <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                        </svg>
+                    </div>
+                    <span class="text-white font-bold text-lg">QR Catalog</span>
+                    <span class="text-slate-400 text-sm">/ Super Admin</span>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <a href="{{ url_for('admin.dashboard') }}" class="text-white font-medium text-sm">Dashboard</a>
+                    <a href="{{ url_for('admin.security') }}" class="text-emerald-400 hover:text-emerald-300 font-bold text-sm flex items-center gap-1">🛡️ Security</a>
+                    <a href="{{ url_for('admin.insights') }}" class="text-slate-400 hover:text-white font-medium text-sm">Insights</a>
+                    <a href="{{ url_for('admin.logout') }}"
+                       class="text-red-400 hover:text-red-300 text-sm font-medium flex items-center gap-1 transition-colors">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+                        </svg>
+                        Logout
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <main class="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
+
+        <!-- Flash messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    {% if category == 'success' or 'successfully' in message.lower() %}
+                        <div class="mb-4 bg-green-50 border-l-4 border-green-500 text-green-800 px-4 py-3 rounded-r-md text-sm font-medium">✅ {{ message }}</div>
+                    {% else %}
+                        <div class="mb-4 bg-red-50 border-l-4 border-red-500 text-red-800 px-4 py-3 rounded-r-md text-sm font-medium">⚠️ {{ message }}</div>
+                    {% endif %}
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <!-- Header -->
+        <div class="mb-8">
+            <h1 class="text-3xl font-bold text-slate-800">Platform Overview</h1>
+            <p class="text-slate-500 mt-1">Monitor all shops and their products across the platform.</p>
+        </div>
+
+        <!-- Stats -->
+        <div class="grid grid-cols-2 md:grid-cols-6 gap-4 mb-8">
+            <div class="glass rounded-xl p-5 shadow-sm">
+                <h3 class="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1">Total Shops</h3>
+                <p class="text-3xl font-bold text-slate-800">{{ managers|length }}</p>
+            </div>
+            <div class="glass rounded-xl p-5 shadow-sm">
+                <h3 class="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1">Active Shops</h3>
+                <p class="text-3xl font-bold text-green-600">{{ managers|selectattr("is_suspended","equalto",0)|list|length }}</p>
+            </div>
+            <div class="glass rounded-xl p-5 shadow-sm">
+                <h3 class="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1">Total Products</h3>
+                <p class="text-3xl font-bold text-blue-600">{{ total_products }}</p>
+            </div>
+            <div class="glass rounded-xl p-5 shadow-sm">
+                <h3 class="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1">Suspended</h3>
+                <p class="text-3xl font-bold text-red-500">
+                    {% set suspended = namespace(count=0) %}
+                    {% for mgr_id, prods in products_by_manager.items() %}
+                        {% for p in prods %}{% if p.status == 'Suspended' %}{% set suspended.count = suspended.count + 1 %}{% endif %}{% endfor %}
+                    {% endfor %}
+                    {{ suspended.count }}
+                </p>
+            </div>
+            <div class="glass rounded-xl p-5 shadow-sm bg-cyan-50/40 border border-cyan-100">
+                <h3 class="text-xs font-bold text-cyan-800 uppercase tracking-wider mb-1">📊 QR Scans</h3>
+                <p class="text-3xl font-bold text-cyan-900">{{ total_scans|default(0) }}</p>
+            </div>
+            <div class="glass rounded-xl p-5 shadow-sm bg-emerald-50/40 border border-emerald-100">
+                <h3 class="text-xs font-bold text-emerald-800 uppercase tracking-wider mb-1">🟢 Active Now</h3>
+                <p class="text-3xl font-bold text-emerald-700">{{ active_sessions|default(0) }}</p>
+            </div>
+        </div>
+
+        <!-- ===== Registered Managers + Per-Manager Products ===== -->
+        <div class="glass rounded-xl shadow-sm overflow-hidden mb-10">
+            <div class="px-6 py-5 border-b border-slate-200 flex items-center justify-between">
+                <div class="flex items-center">
+                    <svg class="w-5 h-5 text-blue-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+                    </svg>
+                    <h3 class="text-lg font-semibold text-slate-800">Registered Managers</h3>
+                </div>
+                <span class="text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded-full">Click any row to see products</span>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full text-sm">
+                    <thead class="bg-slate-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider w-8"></th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Shop</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Email</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Catalog Link</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Products</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Status</th>
+                            <th class="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-slate-200">
+                        {% for manager in managers %}
+                        <!-- Manager Row (clickable) -->
+                        <tr class="manager-row hover:bg-blue-50 transition-colors"
+                            onclick="toggleProducts({{ manager['manager_id'] }})">
+                            <td class="px-6 py-4">
+                                <svg id="chevron-{{ manager['manager_id'] }}" class="chevron w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                                </svg>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="font-semibold text-slate-900">{{ manager.shop_name }}</div>
+                                <div class="text-xs text-slate-400">{{ manager.phone_number }}</div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-slate-500">{{ manager.email }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                {% set base_net_url = "http://" + (local_ip|default("127.0.0.1")) + ":5000" %}
+                                <a href="{{ base_net_url }}/shop/{{ manager.shop_slug }}" target="_blank"
+                                   class="text-blue-500 hover:underline" onclick="event.stopPropagation()">/{{ manager.shop_slug }}</a>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                {% set mgr_products = products_by_manager.get(manager['manager_id'], []) %}
+                                <span class="text-xs font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-full">
+                                    {{ mgr_products|length }} product{{ 's' if mgr_products|length != 1 else '' }}
+                                </span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                {% if manager.is_suspended == 0 %}
+                                    <span class="px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800">Active</span>
+                                {% else %}
+                                    <span class="px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-800">Suspended</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-right space-x-1" onclick="event.stopPropagation()">
+                                <form action="{{ url_for('admin.toggle_bulk_upload', manager_id=manager['manager_id']) }}" method="POST" class="inline">
+                                    <button type="submit" class="text-orange-600 hover:bg-orange-50 text-xs border border-orange-300 rounded px-2 py-1">
+                                        {% if manager.bulk_upload_enabled %}Bulk On{% else %}Bulk Off{% endif %}
+                                    </button>
+                                </form>
+                                <form action="{{ url_for('admin.toggle_price', manager_id=manager['manager_id']) }}" method="POST" class="inline">
+                                    <button type="submit" class="text-purple-600 hover:bg-purple-50 text-xs border border-purple-300 rounded px-2 py-1">
+                                        {% if manager.price_mandatory %}Price Req{% else %}Price Opt{% endif %}
+                                    </button>
+                                </form>
+                                <form action="{{ url_for('admin.toggle_whatsapp', manager_id=manager['manager_id']) }}" method="POST" class="inline">
+                                    <button type="submit" class="text-blue-600 hover:bg-blue-50 text-xs border border-blue-300 rounded px-2 py-1">
+                                        {% if manager.whatsapp_orders_enabled %}WA On{% else %}WA Off{% endif %}
+                                    </button>
+                                </form>
+                                <form action="{{ url_for('admin.toggle_status', manager_id=manager['manager_id']) }}" method="POST" class="inline">
+                                    {% if manager.is_suspended == 0 %}
+                                        <button type="submit" class="text-red-600 hover:bg-red-50 text-xs border border-red-300 rounded px-2 py-1">Suspend</button>
+                                    {% else %}
+                                        <button type="submit" class="text-green-600 hover:bg-green-50 text-xs border border-green-300 rounded px-2 py-1">Activate</button>
+                                    {% endif %}
+                                </form>
+                            </td>
+                        </tr>
+
+                        <!-- Expandable Products for this Manager -->
+                        <tr>
+                            <td colspan="7" class="p-0">
+                                <div id="products-{{ manager['manager_id'] }}" class="product-section-wrapper hidden">
+                                    {% set mgr_products = products_by_manager.get(manager['manager_id'], []) %}
+                                    {% if mgr_products %}
+                                    <div class="bg-blue-50/60 border-t border-b border-blue-100">
+                                        <div class="px-8 pt-3 pb-1 flex items-center gap-2">
+                                            <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+                                            <span class="text-xs font-semibold text-blue-700 uppercase tracking-wider">Products by {{ manager.shop_name }}</span>
+                                        </div>
+                                        <table class="min-w-full text-sm">
+                                            <thead>
+                                                <tr class="text-xs text-slate-500 uppercase tracking-wider">
+                                                    <th class="px-8 py-2 text-left font-medium">Image</th>
+                                                    <th class="px-4 py-2 text-left font-medium">SKU</th>
+                                                    <th class="px-4 py-2 text-left font-medium">Name</th>
+                                                    <th class="px-4 py-2 text-left font-medium">Price</th>
+                                                    <th class="px-4 py-2 text-left font-medium">Stock</th>
+                                                    <th class="px-4 py-2 text-left font-medium">Status</th>
+                                                    <th class="px-4 py-2 text-right font-medium">Action</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody class="divide-y divide-blue-100">
+                                                {% for product in mgr_products %}
+                                                <tr class="hover:bg-blue-100/40 transition-colors {% if product.status == 'Suspended' %}opacity-60{% endif %}">
+                                                    <td class="px-8 py-2">
+                                                        {% if product.image_path != 'placeholder.jpg' %}
+                                                            <img src="{{ url_for('static', filename='images/' + product.image_path) }}"
+                                                                 class="h-10 w-10 object-cover rounded-md cursor-pointer hover:scale-125 hover:ring-2 hover:ring-blue-500 transition-all shadow-sm"
+                                                                 alt="{{ product.name }}"
+                                                                 onclick="openImageModal(this.src, '{{ product.name }}')"
+                                                                 title="Click to zoom">
+                                                        {% else %}
+                                                            <div class="h-10 w-10 rounded-md bg-slate-200 flex items-center justify-center text-slate-400">
+                                                                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                                                            </div>
+                                                        {% endif %}
+                                                    </td>
+                                                    <td class="px-4 py-2 font-mono text-xs text-slate-500">{{ product.sku }}</td>
+                                                    <td class="px-4 py-2 font-medium text-slate-900">{{ product.name }}</td>
+                                                    <td class="px-4 py-2 text-slate-700">
+                                                        {% if product.price_inr > 0 %}₹{{ "{:,.0f}".format(product.price_inr) }}{% else %}<span class="italic text-slate-400 text-xs">On Request</span>{% endif %}
+                                                    </td>
+                                                    <td class="px-4 py-2">
+                                                        {% if product.stock_qty == 0 %}<span class="text-red-500 font-semibold">0</span>
+                                                        {% elif product.stock_qty <= 5 %}<span class="text-orange-500 font-semibold">{{ product.stock_qty }}</span>
+                                                        {% else %}<span class="text-green-600">{{ product.stock_qty }}</span>{% endif %}
+                                                    </td>
+                                                    <td class="px-4 py-2">
+                                                        {% if product.status == 'Active' %}
+                                                            <span class="px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800">Active</span>
+                                                        {% elif product.status == 'Inactive' %}
+                                                            <span class="px-2 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">Inactive</span>
+                                                        {% elif product.status == 'Suspended' %}
+                                                            <span class="px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700">⛔ Suspended</span>
+                                                        {% else %}
+                                                            <span class="px-2 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">{{ product.status }}</span>
+                                                        {% endif %}
+                                                    </td>
+                                                    <td class="px-4 py-2 text-right">
+                                                        <form action="{{ url_for('admin.toggle_product_suspend', product_id=product.product_id) }}" method="POST" class="inline">
+                                                            {% if product.status == 'Suspended' %}
+                                                                <button type="submit" class="text-xs bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded-md font-medium transition-colors">Activate</button>
+                                                            {% else %}
+                                                                <button type="submit" class="text-xs bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-md font-medium transition-colors">Suspend</button>
+                                                            {% endif %}
+                                                        </form>
+                                                    </td>
+                                                </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    {% else %}
+                                    <div class="bg-blue-50/60 border-t border-b border-blue-100 px-10 py-4 text-sm text-slate-500 italic">
+                                        No products added yet for {{ manager.shop_name }}.
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        <!-- System-wide QR Scan Activity Log -->
+        <div class="glass rounded-xl shadow-sm overflow-hidden mb-10 border border-slate-200">
+            <div class="px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <span class="text-lg">📊</span>
+                    <h3 class="text-base font-bold text-slate-800">Platform QR Scan & Visitor Audit Log</h3>
+                </div>
+                <span class="text-xs text-slate-500 font-medium">All shop scans tracked in real-time</span>
+            </div>
+            {% if recent_scans %}
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-slate-200 text-sm">
+                    <thead class="bg-slate-100/80">
+                        <tr>
+                            <th class="px-6 py-2.5 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Scan Time</th>
+                            <th class="px-6 py-2.5 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Shop Name</th>
+                            <th class="px-6 py-2.5 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Device / Browser</th>
+                            <th class="px-6 py-2.5 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">IP Address</th>
+                            <th class="px-6 py-2.5 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Session Token</th>
+                            <th class="px-6 py-2.5 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-slate-100">
+                        {% for scan in recent_scans %}
+                        <tr class="hover:bg-slate-50 transition-colors">
+                            <td class="px-6 py-3 whitespace-nowrap text-slate-700 font-medium">{{ scan.created_at }}</td>
+                            <td class="px-6 py-3 whitespace-nowrap text-slate-900 font-bold">
+                                <a href="{{ url_for('shop.catalog', shop_slug=scan.shop_slug) }}" target="_blank" class="text-blue-600 hover:underline">
+                                    {{ scan.shop_name }}
+                                </a>
+                            </td>
+                            <td class="px-6 py-3 whitespace-nowrap text-slate-800 font-medium">{{ scan.user_agent|default('📱 Mobile') }}</td>
+                            <td class="px-6 py-3 whitespace-nowrap text-slate-500 font-mono text-xs">{{ scan.ip_address|default('127.0.0.1') }}</td>
+                            <td class="px-6 py-3 whitespace-nowrap font-mono text-xs text-cyan-700 bg-cyan-50 px-2 py-0.5 rounded w-fit">{{ scan.session_token }}</td>
+                            <td class="px-6 py-3 whitespace-nowrap text-right">
+                                {% if scan.status == 'Active' %}
+                                    <span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-green-100 text-green-800 inline-flex items-center gap-1">
+                                        <span class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span> Active (15m)
+                                    </span>
+                                {% else %}
+                                    <span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-500">
+                                        Expired
+                                    </span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="px-6 py-8 text-center text-slate-400 text-sm italic">
+                No QR scans recorded yet across the system.
+            </div>
+            {% endif %}
+        </div>
+
+    </main>
+
+    <footer class="bg-slate-900 border-t border-slate-700 mt-auto">
+        <div class="max-w-7xl mx-auto py-4 px-4">
+            <p class="text-center text-sm text-slate-500">© 2026 QR Shop Catalog · Admin Portal</p>
+        </div>
+    </footer>
+
+    <!-- Image Preview Modal -->
+    <div id="imageModal" class="fixed inset-0 z-50 hidden bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" onclick="closeImageModal()">
+        <div class="relative max-w-3xl max-h-[90vh] bg-white rounded-2xl overflow-hidden shadow-2xl p-3" onclick="event.stopPropagation()">
+            <button onclick="closeImageModal()" class="absolute top-4 right-4 z-10 bg-slate-900/80 hover:bg-slate-900 text-white rounded-full p-2 transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+            <img id="modalImage" src="" alt="Full view" class="max-h-[80vh] w-auto max-w-full rounded-xl object-contain mx-auto">
+            <p id="modalCaption" class="text-center text-sm font-semibold text-slate-700 mt-3 pb-1"></p>
+        </div>
+    </div>
+
+    <script>
+    function toggleProducts(managerId) {
+        const wrapper = document.getElementById('products-' + managerId);
+        const chevron = document.getElementById('chevron-' + managerId);
+        const isOpen = !wrapper.classList.contains('hidden');
+        wrapper.classList.toggle('hidden', isOpen);
+        chevron.classList.toggle('open', !isOpen);
+    }
+
+    function openImageModal(src, title) {
+        document.getElementById('modalImage').src = src;
+        document.getElementById('modalCaption').textContent = title || '';
+        document.getElementById('imageModal').classList.remove('hidden');
+    }
+    function closeImageModal() {
+        document.getElementById('imageModal').classList.add('hidden');
+    }
+    </script>
+</body>
+</html>

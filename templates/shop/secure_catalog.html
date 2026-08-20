@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ manager.shop_name }} – Catalog</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background: #f8fafc; }
+        .glass { background: rgba(255,255,255,0.85); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.4); }
+        .scarcity-pulse { animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.6} }
+        @keyframes grayscale-img { to { filter: grayscale(100%); } }
+        .grayscale-img { filter: grayscale(100%); }
+        #session-bar { transition: background 0.5s; }
+        #session-bar.warning { background: #fef3c7; border-color: #f59e0b; }
+        #session-bar.danger  { background: #fee2e2; border-color: #ef4444; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+    <!-- ── Session Timer Bar ── -->
+    <div id="session-bar" class="sticky top-0 z-40 border-b border-slate-200 bg-white px-4 py-2 flex items-center justify-between shadow-sm">
+        <div class="flex items-center gap-2">
+            <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse" id="dot"></div>
+            <span class="text-xs font-semibold text-slate-700" id="timer-label">Session Active</span>
+        </div>
+        <span class="text-xs font-bold text-slate-600" id="timer-display">15:00</span>
+    </div>
+
+    <!-- ── Shop Header ── -->
+    <header class="bg-white border-b border-slate-200 shadow-sm">
+        <div class="max-w-2xl mx-auto px-4 py-4 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold text-lg">
+                    {{ manager.shop_name[0]|upper }}
+                </div>
+                <div>
+                    <h1 class="font-bold text-slate-900 text-lg leading-none">{{ manager.shop_name }}</h1>
+                    <p class="text-xs text-slate-500 mt-0.5">{{ manager.phone_number }}</p>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- ── Catalog ── -->
+    <main class="flex-grow max-w-2xl mx-auto w-full px-4 py-6">
+        <div class="mb-5">
+            <h2 class="text-xl font-bold text-slate-800">Our Catalog</h2>
+            {% if manager.whatsapp_orders_enabled %}
+                <p class="text-slate-500 text-sm mt-1">Tap a product to order via WhatsApp</p>
+            {% endif %}
+        </div>
+
+        {% if products %}
+        <div class="grid grid-cols-2 gap-4">
+            {% for product in products %}
+            <div class="glass rounded-2xl shadow-sm overflow-hidden flex flex-col group">
+                <!-- Image -->
+                <div class="aspect-square bg-slate-100 relative overflow-hidden">
+                    {% if product.image_path != 'placeholder.jpg' %}
+                        <img class="w-full h-full object-cover cursor-pointer transition-transform duration-300 group-hover:scale-110 {{ 'grayscale-img' if product.stock_qty == 0 else '' }}"
+                             src="{{ url_for('static', filename='images/' + product.image_path) }}"
+                             alt="{{ product.name }}"
+                             onclick="openImageModal(this.src, '{{ product.name }}')"
+                             title="Click to zoom">
+                    {% else %}
+                        <div class="w-full h-full flex items-center justify-center text-slate-300">
+                            <svg class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                        </div>
+                    {% endif %}
+                    <!-- Badge -->
+                    <div class="absolute top-2 right-2">
+                        {% if product.stock_qty == 0 %}
+                            <span class="bg-slate-800 text-white text-[10px] font-bold px-2 py-1 rounded-full shadow-sm">OUT OF STOCK</span>
+                        {% elif product.stock_qty <= 5 %}
+                            <span class="bg-red-500 text-white text-[10px] font-bold px-2 py-1 rounded-full shadow-sm scarcity-pulse">ONLY {{ product.stock_qty }} LEFT!</span>
+                        {% else %}
+                            <span class="bg-emerald-500 text-white text-[10px] font-bold px-2 py-1 rounded-full shadow-sm">IN STOCK</span>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Details -->
+                <div class="p-3 flex flex-col flex-grow bg-white">
+                    <h3 class="font-semibold text-slate-800 text-sm leading-tight line-clamp-2 mb-1">{{ product.name }}</h3>
+                    <div class="mt-auto pt-2 flex items-center justify-between">
+                        {% if manager.show_price %}
+                            {% if product.price_inr > 0 %}
+                                <span class="font-bold text-slate-900">₹{{ "{:,.0f}".format(product.price_inr) }}</span>
+                            {% else %}
+                                <span class="text-xs font-semibold text-slate-500 italic">Price on Request</span>
+                            {% endif %}
+                        {% endif %}
+                    </div>
+
+                    <!-- CTA -->
+                    <div class="mt-3">
+                        {% if product.stock_qty > 0 and manager.whatsapp_orders_enabled %}
+                            {% if manager.show_price and product.price_inr > 0 %}
+                                {% set wa_text = "Hi " ~ manager.shop_name ~ ", I want to order " ~ product.name ~ " priced at ₹" ~ product.price_inr %}
+                            {% else %}
+                                {% set wa_text = "Hi " ~ manager.shop_name ~ ", I want to enquire about " ~ product.name %}
+                            {% endif %}
+                            {% set wa_url = "https://wa.me/" ~ manager.phone_number ~ "?text=" ~ wa_text|urlencode %}
+                            <a href="{{ wa_url }}" target="_blank"
+                               class="block w-full text-center bg-green-500 hover:bg-green-600 text-white text-xs font-bold py-2 rounded-lg transition-colors">
+                                Order on WhatsApp
+                            </a>
+                        {% elif product.stock_qty == 0 %}
+                            <button disabled class="block w-full text-center bg-slate-100 text-slate-400 text-xs font-bold py-2 rounded-lg cursor-not-allowed">Out of Stock</button>
+                        {% else %}
+                            <button disabled class="block w-full text-center bg-slate-100 text-slate-400 text-xs font-bold py-2 rounded-lg cursor-not-allowed">Not accepting orders</button>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center py-16">
+            <h3 class="text-lg font-medium text-slate-900">No products yet</h3>
+            <p class="text-slate-500 text-sm mt-1">This shop hasn't added any products yet.</p>
+        </div>
+        {% endif %}
+    </main>
+
+    <!-- ── Session Expired Overlay ── -->
+    <div id="expired-overlay" class="fixed inset-0 z-50 hidden bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl shadow-2xl p-8 max-w-sm w-full text-center">
+            <div class="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg class="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M12 3a9 9 0 110 18A9 9 0 0112 3z"/>
+                </svg>
+            </div>
+            <h2 class="text-2xl font-bold text-slate-900 mb-2">Session Expired</h2>
+            <p class="text-slate-500 text-sm mb-6">Your 15-minute browsing session has ended.<br>Please scan the QR code again to continue.</p>
+            <div class="w-16 h-16 bg-slate-100 rounded-xl mx-auto flex items-center justify-center mb-4">
+                <svg class="w-10 h-10 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"/>
+                </svg>
+            </div>
+            <p class="text-xs text-slate-400">Scan the QR code at the shop to get a new session.</p>
+        </div>
+    </div>
+
+    <!-- Image Modal -->
+    <div id="imageModal" class="fixed inset-0 z-50 hidden bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" onclick="closeImageModal()">
+        <div class="relative max-w-3xl max-h-[90vh] bg-white rounded-2xl overflow-hidden shadow-2xl p-3" onclick="event.stopPropagation()">
+            <button onclick="closeImageModal()" class="absolute top-4 right-4 z-10 bg-slate-900/80 hover:bg-slate-900 text-white rounded-full p-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+            <img id="modalImage" src="" class="max-h-[80vh] w-auto max-w-full rounded-xl object-contain mx-auto">
+            <p id="modalCaption" class="text-center text-sm font-semibold text-slate-700 mt-3 pb-1"></p>
+        </div>
+    </div>
+
+    <script>
+    // ── Session Timer ──────────────────────────────────────────────────────
+    const remainingSecs = {{ remaining_secs if remaining_secs is defined else (session_duration * 60) }};
+    const expiresAt   = Date.now() + (remainingSecs * 1000);
+
+    const timerDisplay = document.getElementById('timer-display');
+    const timerLabel   = document.getElementById('timer-label');
+    const sessionBar   = document.getElementById('session-bar');
+    const dot          = document.getElementById('dot');
+    const overlay      = document.getElementById('expired-overlay');
+
+    function tick() {
+        const remaining = expiresAt - Date.now();
+        if (remaining <= 0) {
+            // Session expired
+            timerDisplay.textContent = '00:00';
+            timerLabel.textContent   = 'Session Expired';
+            dot.classList.replace('bg-green-500', 'bg-red-500');
+            dot.classList.remove('animate-pulse');
+            overlay.classList.remove('hidden');
+            return; // stop ticking
+        }
+
+        const mins = Math.floor(remaining / 60000);
+        const secs = Math.floor((remaining % 60000) / 1000);
+        timerDisplay.textContent = `${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')}`;
+
+        // Change colours when running low
+        if (remaining < 2 * 60 * 1000) {
+            sessionBar.classList.remove('warning');
+            sessionBar.classList.add('danger');
+            timerLabel.textContent = 'Session Expiring Soon!';
+            dot.classList.replace('bg-green-500', 'bg-red-500');
+        } else if (remaining < 5 * 60 * 1000) {
+            sessionBar.classList.add('warning');
+            timerLabel.textContent = 'Session Expiring Soon';
+            dot.classList.replace('bg-green-500', 'bg-yellow-500');
+        }
+
+        setTimeout(tick, 1000);
+    }
+
+    tick();
+
+    // ── Image Modal ────────────────────────────────────────────────────────
+    function openImageModal(src, title) {
+        document.getElementById('modalImage').src = src;
+        document.getElementById('modalCaption').textContent = title || '';
+        document.getElementById('imageModal').classList.remove('hidden');
+    }
+    function closeImageModal() {
+        document.getElementById('imageModal').classList.add('hidden');
+    }
+    </script>
+</body>
+</html>

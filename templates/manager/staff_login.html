@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+{% block title %}Staff Login - {{ manager.shop_name }}{% endblock %}
+
+{% block content %}
+<div class="max-w-md mx-auto mt-10">
+    <div class="glass rounded-3xl shadow-xl overflow-hidden bg-white border border-slate-200/80">
+        <div class="px-8 py-8">
+            <div class="text-center mb-6">
+                <span class="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-purple-600 to-indigo-600 text-white text-2xl font-bold shadow-md mb-3">
+                    👥
+                </span>
+                <h2 class="text-2xl font-extrabold text-slate-900 tracking-tight">Staff Portal Login</h2>
+                <p class="text-sm font-bold text-purple-700 mt-1">🏪 {{ manager.shop_name }}</p>
+                <p class="text-xs text-slate-400 mt-1">Exclusive staff sub-account login portal for this store</p>
+            </div>
+            
+            <form method="post" class="space-y-5">
+                <div>
+                    <label for="username" class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Staff Username</label>
+                    <div class="relative">
+                        <input id="username" name="username" type="text" required autofocus
+                               placeholder="e.g. staff_order_1"
+                               class="appearance-none block w-full px-4 py-3 border border-slate-300 rounded-xl shadow-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm font-medium">
+                    </div>
+                </div>
+                <div>
+                    <label for="password" class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Password</label>
+                    <div class="relative">
+                        <input id="password" name="password" type="password" required
+                               placeholder="••••••••"
+                               class="appearance-none block w-full px-4 py-3 border border-slate-300 rounded-xl shadow-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm">
+                    </div>
+                </div>
+                <div>
+                    <button type="submit"
+                            class="w-full flex justify-center items-center gap-2 py-3 px-4 rounded-xl shadow-md text-sm font-bold text-white bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 transition-all transform hover:scale-[1.02] cursor-pointer">
+                        🔓 Sign In to {{ manager.shop_name }} Staff Portal
+                    </button>
+                </div>
+            </form>
+
+            <div class="mt-6 pt-5 border-t border-slate-100 text-center space-y-2">
+                <p class="text-xs text-slate-500">
+                    Not staff for {{ manager.shop_name }}? 
+                    <a href="{{ url_for('manager.login') }}" class="font-bold text-purple-600 hover:text-purple-700 underline">Main Store Manager Login</a>
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

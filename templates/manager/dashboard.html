@@ -1,0 +1,706 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard - {{ manager.shop_name }}{% endblock %}
+
+{% block content %}
+<!-- Top Header -->
+<div class="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+    <div>
+        <div class="flex items-center gap-3">
+            <h1 class="text-3xl font-extrabold text-slate-800 tracking-tight">{{ manager.shop_name }}</h1>
+            <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-800 border border-blue-200">
+                Store ID: #{{ manager.manager_id }}
+            </span>
+        </div>
+        <p class="text-slate-500 mt-1 text-sm">Manage products, monitor real-time QR visitors, and manage your digital storefront.</p>
+    </div>
+</div>
+
+<!-- Smart Alerts -->
+{% if pending_orders > 0 or low_stock_products %}
+<div class="mb-6 space-y-3">
+    {% if pending_orders > 0 %}
+    <div class="flex items-center gap-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-4 py-3 shadow-sm">
+        <svg class="w-5 h-5 flex-shrink-0 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path></svg>
+        <span class="font-medium text-sm">You have <strong>{{ pending_orders }} pending order{{ 's' if pending_orders > 1 else '' }}</strong> waiting for action.</span>
+        <a href="{{ url_for('manager.orders') }}" class="ml-auto text-xs font-bold bg-amber-500 text-white px-3 py-1.5 rounded-lg hover:bg-amber-600 transition-colors whitespace-nowrap shadow-sm">View Orders</a>
+    </div>
+    {% endif %}
+    {% if low_stock_products %}
+    <div class="flex items-start gap-3 bg-red-50 border border-red-200 text-red-800 rounded-xl px-4 py-3 shadow-sm">
+        <svg class="w-5 h-5 flex-shrink-0 text-red-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+        <div class="flex-grow">
+            <p class="font-semibold text-sm">Low Stock Alert</p>
+            <p class="text-xs mt-0.5">
+                {% for p in low_stock_products %}
+                    <span class="inline-block bg-red-100 rounded px-1.5 py-0.5 mr-1 mb-1 font-medium">{{ p.name }} <span class="font-bold">({{ p.stock_qty }} left)</span></span>
+                {% endfor %}
+            </p>
+        </div>
+        <a href="{{ url_for('manager.bulk_stock') }}" class="ml-auto text-xs font-bold bg-red-500 text-white px-3 py-1.5 rounded-lg hover:bg-red-600 transition-colors whitespace-nowrap shadow-sm">Restock</a>
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+
+<!-- Top Grid: QR Share Card & Operational Controls -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+    <!-- QR Code & Quick Share Card -->
+    <div class="glass rounded-2xl p-6 shadow-sm flex flex-col items-center justify-between text-center bg-white border border-slate-200/80">
+        <div>
+            <div class="flex items-center justify-center gap-2 mb-2">
+                <span class="w-2 h-2 rounded-full bg-blue-600 animate-pulse"></span>
+                <h3 class="text-base font-bold text-slate-800">Your Storefront QR Code</h3>
+            </div>
+            <p class="text-xs text-slate-500 mb-4">Customers scan this code to browse your live catalog.</p>
+        </div>
+
+        <div class="relative group cursor-pointer" onclick="openPrintModal()">
+            <div class="p-3 bg-white border-2 border-slate-100 rounded-2xl shadow-md group-hover:shadow-lg transition-all group-hover:scale-105">
+                <img src="{{ url_for('static', filename='qrs/' + manager.shop_slug + '.png') }}" alt="Shop QR Code" class="w-44 h-44 object-contain">
+            </div>
+            <div class="absolute inset-0 bg-black/40 rounded-2xl opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-white text-xs font-bold gap-1">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+                Click to Print / Enlarge
+            </div>
+        </div>
+
+        <div class="w-full mt-4 space-y-2">
+            <!-- Share & Action Buttons -->
+            <div class="grid grid-cols-2 gap-2">
+                <button onclick="shareOnWhatsApp()" class="flex items-center justify-center gap-1.5 py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-sm transition-all">
+                    <span>💬</span> WhatsApp
+                </button>
+                <button onclick="triggerNativeShare()" class="flex items-center justify-center gap-1.5 py-2 px-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-sm transition-all">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg>
+                    Share
+                </button>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+                <button onclick="copyShopLink()" id="copyLinkBtn" class="flex items-center justify-center gap-1.5 py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-all border border-slate-200">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>
+                    <span id="copyBtnText">Copy Link</span>
+                </button>
+                <a href="{{ url_for('static', filename='qrs/' + manager.shop_slug + '.png') }}" download="{{ manager.shop_slug }}-qr.png" class="flex items-center justify-center gap-1.5 py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-all border border-slate-200">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                    Download QR
+                </a>
+            </div>
+
+            <!-- Dynamic URL preview -->
+            <div class="pt-2 text-[11px] text-slate-500 truncate text-left bg-slate-50 px-2.5 py-1.5 rounded-lg border border-slate-200/60">
+                <span class="font-semibold text-slate-600">Store URL:</span>
+                <a href="{{ shop_url }}" target="_blank" class="text-blue-600 hover:underline font-mono ml-1">{{ shop_url }}</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Middle: KPI Cards -->
+    <div class="space-y-4">
+        <!-- Products & Orders KPIs in 2-col -->
+        <div class="grid grid-cols-2 gap-4">
+            <div class="glass rounded-2xl p-5 shadow-sm bg-white border border-slate-200/80 flex flex-col justify-between">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Products</span>
+                    <span class="p-2 rounded-xl bg-blue-50 text-blue-600 text-base">📦</span>
+                </div>
+                <div class="mt-2">
+                    <p class="text-3xl font-extrabold text-slate-800">{{ products|length }}</p>
+                    <span class="text-[11px] text-slate-500 font-medium">In your catalog</span>
+                </div>
+            </div>
+
+            <div class="glass rounded-2xl p-5 shadow-sm bg-white border border-slate-200/80 flex flex-col justify-between">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Pending Orders</span>
+                    <span class="p-2 rounded-xl bg-amber-50 text-amber-600 text-base">🛍️</span>
+                </div>
+                <div class="mt-2">
+                    <p class="text-3xl font-extrabold text-slate-800">{{ pending_orders }}</p>
+                    <a href="{{ url_for('manager.orders') }}" class="text-[11px] text-amber-600 hover:underline font-bold">Manage orders &rarr;</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- WhatsApp Orders Setting Card -->
+        <div class="glass rounded-2xl p-5 shadow-sm bg-white border border-slate-200/80">
+            <div class="flex items-center justify-between mb-2">
+                <div class="flex items-center gap-2">
+                    <span class="text-base">💬</span>
+                    <h3 class="text-sm font-bold text-slate-800">WhatsApp Ordering</h3>
+                </div>
+                <form action="{{ url_for('manager.toggle_whatsapp') }}" method="POST">
+                    <button type="submit" class="text-xs px-2.5 py-1 rounded-md font-semibold border transition-all {% if manager.whatsapp_orders_enabled %}bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100{% else %}bg-slate-100 text-slate-600 border-slate-300 hover:bg-slate-200{% endif %}">
+                        {% if manager.whatsapp_orders_enabled %}Active ✓{% else %}Disabled{% endif %}
+                    </button>
+                </form>
+            </div>
+            <p class="text-xs text-slate-500">Connected Number: <strong class="text-slate-700 font-mono">{{ manager.phone_number }}</strong></p>
+        </div>
+
+        <!-- Price Settings Card -->
+        <div class="glass rounded-2xl p-5 shadow-sm bg-white border border-slate-200/80 space-y-3">
+            <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider">Storefront Price Display</h3>
+
+            <!-- Show Price on Catalog -->
+            <div class="flex items-center justify-between text-xs">
+                <div>
+                    <span class="font-semibold text-slate-700">Display Prices on Catalog</span>
+                    <p class="text-[11px] text-slate-400">Show or hide price tags to visitors.</p>
+                </div>
+                <form action="{{ url_for('manager.toggle_show_price') }}" method="POST">
+                    <button type="submit" class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none {% if manager.show_price %}bg-blue-600{% else %}bg-slate-300{% endif %}">
+                        <span class="inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform {% if manager.show_price %}translate-x-4{% else %}translate-x-1{% endif %}"></span>
+                    </button>
+                </form>
+            </div>
+
+            <!-- Price Mandatory -->
+            <div class="flex items-center justify-between text-xs pt-2 border-t border-slate-100">
+                <div>
+                    <span class="font-semibold text-slate-700">Require Price on New Items</span>
+                    <p class="text-[11px] text-slate-400">Enforce price entry when adding products.</p>
+                </div>
+                <form action="{{ url_for('manager.toggle_price') }}" method="POST">
+                    <button type="submit" class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none {% if manager.price_mandatory %}bg-blue-600{% else %}bg-slate-300{% endif %}">
+                        <span class="inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform {% if manager.price_mandatory %}translate-x-4{% else %}translate-x-1{% endif %}"></span>
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right: Visitor & Scan Analytics Summary -->
+    <div class="space-y-4">
+        <!-- Live Active Visitors Card -->
+        <div class="glass rounded-2xl p-6 shadow-sm bg-gradient-to-br from-emerald-50 to-teal-50/50 border border-emerald-200/80 flex flex-col justify-between">
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-emerald-800 uppercase tracking-wider flex items-center gap-1.5">
+                    <span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+                    Active Visitors
+                </span>
+                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">Live 15m</span>
+            </div>
+            <div class="mt-4 mb-2">
+                <p class="text-4xl font-black text-emerald-900">{{ active_visitors|default(0) }}</p>
+                <p class="text-xs text-emerald-700/90 mt-1 font-medium">Customers currently viewing your store</p>
+            </div>
+        </div>
+
+        <!-- Total Scans & Today Scans -->
+        <div class="grid grid-cols-2 gap-4">
+            <div class="glass rounded-2xl p-5 shadow-sm bg-white border border-slate-200/80">
+                <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Scans</span>
+                <p class="text-3xl font-extrabold text-blue-900 mt-1">{{ total_scans|default(0) }}</p>
+                <span class="text-[11px] text-slate-400 font-medium">All-time scans</span>
+            </div>
+
+            <div class="glass rounded-2xl p-5 shadow-sm bg-white border border-slate-200/80">
+                <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Today's Visits</span>
+                <p class="text-3xl font-extrabold text-indigo-900 mt-1">{{ today_scans|default(0) }}</p>
+                <span class="text-[11px] text-slate-400 font-medium">Recorded today</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- QR Scan Analytics & Visitor Activity Log -->
+<div class="glass rounded-2xl shadow-sm overflow-hidden mb-8 bg-white border border-slate-200/80">
+    <div class="px-6 py-4 border-b border-slate-200 bg-slate-50/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div class="flex items-center gap-2">
+            <div class="w-7 h-7 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-sm">📊</div>
+            <div>
+                <h3 class="text-base font-bold text-slate-800">QR Scan Analytics & Visitor Activity</h3>
+                <p class="text-xs text-slate-500">Real-time visitor logs, client IP addresses, and device signatures.</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-2 text-xs text-slate-500">
+            <span class="inline-flex items-center gap-1 font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                {{ active_visitors }} Active Now
+            </span>
+            <span class="font-medium">Total: {{ total_scans }}</span>
+        </div>
+    </div>
+
+    {% if recent_scans %}
+    <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-slate-200 text-sm">
+            <thead class="bg-slate-50">
+                <tr>
+                    <th scope="col" class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Time</th>
+                    <th scope="col" class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Device & Browser</th>
+                    <th scope="col" class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Client IP Address</th>
+                    <th scope="col" class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Session Identifier</th>
+                    <th scope="col" class="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Session Status</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-slate-100">
+                {% for scan in recent_scans %}
+                <tr class="hover:bg-slate-50/80 transition-colors">
+                    <td class="px-6 py-3.5 whitespace-nowrap text-slate-700 font-medium text-xs">
+                        {{ scan.created_at }}
+                    </td>
+                    <td class="px-6 py-3.5 whitespace-nowrap">
+                        <span class="font-semibold text-slate-800 text-xs bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200/60 inline-flex items-center gap-1">
+                            {{ scan.device_info }}
+                        </span>
+                    </td>
+                    <td class="px-6 py-3.5 whitespace-nowrap">
+                        <span class="font-mono text-xs text-blue-700 bg-blue-50 px-2.5 py-1 rounded-md border border-blue-100">
+                            {{ scan.ip_address }}
+                        </span>
+                    </td>
+                    <td class="px-6 py-3.5 whitespace-nowrap">
+                        <span class="font-mono text-[11px] text-slate-500 bg-slate-50 px-2 py-0.5 rounded border border-slate-200">
+                            {{ scan.session_token }}
+                        </span>
+                    </td>
+                    <td class="px-6 py-3.5 whitespace-nowrap text-right">
+                        {% if scan.status == 'Active' %}
+                            <span class="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 inline-flex items-center gap-1.5 shadow-sm">
+                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
+                                Active (Live)
+                            </span>
+                        {% else %}
+                            <span class="px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-500 border border-slate-200">
+                                Expired
+                            </span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="px-6 py-12 text-center text-slate-400 text-sm">
+        <div class="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-3 text-xl">📱</div>
+        <p class="font-semibold text-slate-700">No QR Scans or Visits Yet</p>
+        <p class="text-xs text-slate-500 mt-1 max-w-sm mx-auto">Share your QR code with customers or open your store link to start tracking live visitor analytics.</p>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Product Table -->
+<div class="glass rounded-xl shadow-sm overflow-hidden">
+    <div class="px-6 py-4 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/50">
+        <div>
+            <h3 class="text-lg font-bold text-slate-800">Your Catalog</h3>
+            <p class="text-xs text-slate-500">Manage products, update stock/pricing, or add new items.</p>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+            <a href="{{ url_for('manager.add_product') }}" class="inline-flex items-center px-3 py-1.5 text-xs font-bold rounded-lg text-white bg-blue-600 hover:bg-blue-700 shadow-sm transition-all">
+                <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                Single Add
+            </a>
+            {% if manager.bulk_upload_enabled != 0 %}
+            <a href="{{ url_for('manager.upload') }}" class="inline-flex items-center px-3 py-1.5 text-xs font-bold rounded-lg text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 transition-all">
+                <svg class="w-3.5 h-3.5 mr-1 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                Bulk Upload
+            </a>
+            {% endif %}
+            <a href="{{ url_for('manager.bulk_stock') }}" class="inline-flex items-center px-3 py-1.5 text-xs font-bold rounded-lg text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-all">
+                <svg class="w-3.5 h-3.5 mr-1 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
+                Quick Restock
+            </a>
+        </div>
+    </div>
+    {% if products %}
+    <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-slate-200">
+            <thead class="bg-slate-50">
+                <tr>
+                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Image</th>
+                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">SKU</th>
+                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Name</th>
+                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Price (₹)</th>
+                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Stock</th>
+                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Status</th>
+                    <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">Quick Edit</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-slate-200">
+                {% for product in products %}
+                <tr>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="flex-shrink-0 h-10 w-10">
+                            {% if product.image_path != 'placeholder.jpg' %}
+                            <img class="h-10 w-10 rounded-md object-cover cursor-pointer transition-all duration-200 hover:scale-125 hover:shadow-lg hover:ring-2 hover:ring-blue-500"
+                                 src="{{ url_for('static', filename='images/' + product.image_path) }}"
+                                 alt="{{ product.name }}"
+                                 onclick="openImageModal(this.src, '{{ product.name }}')"
+                                 title="Click to view full image">
+                            {% else %}
+                            <div class="h-10 w-10 rounded-md bg-slate-200 flex items-center justify-center text-slate-400">
+                                <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{{ product.sku }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="text-sm font-medium text-slate-900">{{ product.name }}</div>
+                    </td>
+                    <!-- Inline editable price -->
+                    <td class="px-6 py-4 whitespace-nowrap text-sm">
+                        <span class="display-val font-medium text-slate-900 cursor-pointer hover:text-blue-600" title="Click to edit" onclick="startEdit(this)">₹{{ product.price_inr }}</span>
+                        <input type="number" step="0.01" min="0"
+                               class="edit-input hidden w-24 px-2 py-1 text-sm border border-blue-400 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                               value="{{ product.price_inr }}" data-field="price_inr" data-id="{{ product.product_id }}">
+                    </td>
+                    <!-- Inline editable stock -->
+                    <td class="px-6 py-4 whitespace-nowrap text-sm">
+                        <span class="display-val cursor-pointer hover:text-blue-600" title="Click to edit" onclick="startEdit(this)">
+                            {% if product.stock_qty == 0 %}
+                                <span class="text-red-500 font-semibold">Out of Stock (0)</span>
+                            {% elif product.stock_qty <= 5 %}
+                                <span class="text-orange-500 font-semibold">Low ({{ product.stock_qty }})</span>
+                            {% else %}
+                                <span class="text-green-600 font-medium">{{ product.stock_qty }}</span>
+                            {% endif %}
+                        </span>
+                        <input type="number" min="0"
+                               class="edit-input hidden w-20 px-2 py-1 text-sm border border-blue-400 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                               value="{{ product.stock_qty }}" data-field="stock_qty" data-id="{{ product.product_id }}">
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        {% if product.status == 'Suspended' %}
+                            <span class="px-2.5 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800 border border-red-200" title="Suspended by Super Admin">
+                                ⛔ Suspended
+                            </span>
+                        {% else %}
+                            <form action="{{ url_for('manager.toggle_product_status', product_id=product.product_id) }}" method="POST" class="inline">
+                                {% if product.status == 'Active' %}
+                                    <button type="submit" title="Click to change to Inactive (hide from catalog)"
+                                            class="cursor-pointer px-3 py-1 inline-flex items-center text-xs leading-5 font-bold rounded-full bg-green-100 text-green-800 hover:bg-green-200 hover:scale-105 transition-all shadow-sm">
+                                        <span class="w-2 h-2 mr-1.5 bg-green-600 rounded-full animate-pulse"></span> Active
+                                    </button>
+                                {% else %}
+                                    <button type="submit" title="Click to change to Active (show on catalog)"
+                                            class="cursor-pointer px-3 py-1 inline-flex items-center text-xs leading-5 font-bold rounded-full bg-slate-100 text-slate-700 hover:bg-slate-200 hover:scale-105 transition-all shadow-sm">
+                                        <span class="w-2 h-2 mr-1.5 bg-slate-400 rounded-full"></span> Inactive
+                                    </button>
+                                {% endif %}
+                            </form>
+                        {% endif %}
+                    </td>
+                    <!-- Quick Edit Save & Full Edit Link -->
+                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm">
+                        <div class="flex items-center justify-end space-x-2">
+                            <a href="{{ url_for('manager.edit_product', product_id=product.product_id) }}"
+                               class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-2.5 py-1 rounded-md font-medium transition-colors border border-slate-300">
+                                ✏️ Edit
+                            </a>
+                            <form method="POST" action="{{ url_for('manager.quick_edit_product', product_id=product.product_id) }}" id="form-{{ product.product_id }}" class="inline">
+                                <input type="hidden" name="price_inr" id="price-{{ product.product_id }}" value="">
+                                <input type="hidden" name="stock_qty" id="stock-{{ product.product_id }}" value="">
+                                <button type="submit" id="save-btn-{{ product.product_id }}"
+                                        class="save-btn hidden text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-md font-medium transition-colors">
+                                    Save
+                                </button>
+                                <button type="button" id="cancel-btn-{{ product.product_id }}"
+                                        class="cancel-btn hidden text-xs text-slate-500 hover:text-slate-700 px-2 py-1"
+                                        onclick="cancelEdit({{ product.product_id }})">
+                                    Cancel
+                                </button>
+                            </form>
+                            <form method="POST" action="{{ url_for('manager.delete_product', product_id=product.product_id) }}" class="inline" onsubmit="return confirm('Are you sure you want to delete product &quot;{{ product.name }}&quot;?');">
+                                <button type="submit"
+                                        class="text-xs bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 px-2.5 py-1 rounded-md font-medium transition-colors border border-red-200" title="Delete product from catalog">
+                                    🗑️ Delete
+                                </button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="text-center py-12">
+        <svg class="mx-auto h-12 w-12 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path></svg>
+        <h3 class="mt-2 text-sm font-medium text-slate-900">No products</h3>
+        <p class="mt-1 text-sm text-slate-500">Get started by adding products manually or uploading your product catalog.</p>
+        <div class="mt-6 flex items-center justify-center gap-3">
+            <a href="{{ url_for('manager.add_product') }}" class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                Single Add Product
+            </a>
+            {% if manager.bulk_upload_enabled != 0 %}
+            <a href="{{ url_for('manager.upload') }}" class="inline-flex items-center px-4 py-2 border border-slate-300 shadow-sm text-sm font-medium rounded-md text-slate-700 bg-white hover:bg-slate-50">
+                <svg class="w-4 h-4 mr-2 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                Bulk Upload CSV
+            </a>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+const shopUrl = "{{ shop_url }}";
+const shopName = "{{ manager.shop_name }}";
+const qrImgSrc = "{{ url_for('static', filename='qrs/' + manager.shop_slug + '.png') }}";
+
+function copyShopLink() {
+    navigator.clipboard.writeText(shopUrl).then(() => {
+        const btnText = document.getElementById('copyBtnText');
+        const modalBtnText = document.getElementById('modalCopyBtnText');
+        if (btnText) btnText.textContent = "Copied! ✓";
+        if (modalBtnText) modalBtnText.textContent = "Copied! ✓";
+        showToast("✓ Store URL copied to clipboard!");
+        setTimeout(() => {
+            if (btnText) btnText.textContent = "Copy Link";
+            if (modalBtnText) modalBtnText.textContent = "Copy Store Link";
+        }, 2500);
+    }).catch(err => {
+        // Fallback for older browsers
+        const textarea = document.createElement('textarea');
+        textarea.value = shopUrl;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+        showToast("✓ Store URL copied to clipboard!");
+    });
+}
+
+function shareOnWhatsApp() {
+    const text = encodeURIComponent(`👋 Welcome to *${shopName}*!\n\n🛒 Browse our digital product catalog and place orders directly:\n🔗 ${shopUrl}\n\nScan our QR code or tap the link to get started!`);
+    window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank');
+}
+
+function triggerNativeShare() {
+    if (navigator.share) {
+        navigator.share({
+            title: shopName + ' - Digital Store Catalog',
+            text: `Browse products and order directly from ${shopName}:`,
+            url: shopUrl
+        }).catch((err) => {
+            if (err.name !== 'AbortError') copyShopLink();
+        });
+    } else {
+        openShareModal();
+    }
+}
+
+function openShareModal() {
+    document.getElementById('shareModal').classList.remove('hidden');
+}
+
+function closeShareModal() {
+    document.getElementById('shareModal').classList.add('hidden');
+}
+
+function openPrintModal() {
+    document.getElementById('printModal').classList.remove('hidden');
+}
+
+function closePrintModal() {
+    document.getElementById('printModal').classList.add('hidden');
+}
+
+function printStandee() {
+    window.print();
+}
+
+function showToast(message) {
+    const toast = document.getElementById('actionToast');
+    const toastMsg = document.getElementById('toastMessage');
+    toastMsg.textContent = message;
+    toast.classList.remove('opacity-0', 'translate-y-4', 'pointer-events-none');
+    toast.classList.add('opacity-100', 'translate-y-0');
+    setTimeout(() => {
+        toast.classList.remove('opacity-100', 'translate-y-0');
+        toast.classList.add('opacity-0', 'translate-y-4', 'pointer-events-none');
+    }, 3000);
+}
+
+function startEdit(el) {
+    const row = el.closest('tr');
+    const productId = row.querySelector('.edit-input').dataset.id;
+
+    // show all edit inputs in this row, hide display values
+    row.querySelectorAll('.display-val').forEach(v => v.classList.add('hidden'));
+    row.querySelectorAll('.edit-input').forEach(i => { i.classList.remove('hidden'); i.focus(); });
+
+    // show save/cancel buttons
+    document.getElementById('save-btn-' + productId).classList.remove('hidden');
+    document.getElementById('cancel-btn-' + productId).classList.remove('hidden');
+
+    // wire up save: on submit, copy input values into hidden form fields
+    const form = document.getElementById('form-' + productId);
+    form.onsubmit = function() {
+        const priceInput = row.querySelector('input[data-field="price_inr"]');
+        const stockInput = row.querySelector('input[data-field="stock_qty"]');
+        document.getElementById('price-' + productId).value = priceInput.value;
+        document.getElementById('stock-' + productId).value = stockInput.value;
+        return true;
+    };
+}
+
+function cancelEdit(productId) {
+    const form = document.getElementById('form-' + productId);
+    const row  = form.closest('tr');
+    row.querySelectorAll('.display-val').forEach(v => v.classList.remove('hidden'));
+    row.querySelectorAll('.edit-input').forEach(i => i.classList.add('hidden'));
+    document.getElementById('save-btn-' + productId).classList.add('hidden');
+    document.getElementById('cancel-btn-' + productId).classList.add('hidden');
+}
+
+function openImageModal(src, title) {
+    const modal = document.getElementById('imageModal');
+    const modalImg = document.getElementById('modalImage');
+    const modalCap = document.getElementById('modalCaption');
+    modalImg.src = src;
+    modalCap.textContent = title || '';
+    modal.classList.remove('hidden');
+}
+function closeImageModal() {
+    document.getElementById('imageModal').classList.add('hidden');
+}
+</script>
+
+<!-- Toast Notification -->
+<div id="actionToast" class="fixed bottom-6 right-6 z-50 transition-all duration-300 transform opacity-0 translate-y-4 pointer-events-none bg-slate-900 text-white px-5 py-3 rounded-xl shadow-2xl flex items-center gap-3 border border-slate-700 text-sm font-medium">
+    <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+    <span id="toastMessage">Done!</span>
+</div>
+
+<!-- Rich Share Modal -->
+<div id="shareModal" class="fixed inset-0 z-50 hidden bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onclick="closeShareModal()">
+    <div class="relative w-full max-w-md bg-white rounded-3xl overflow-hidden shadow-2xl p-6 border border-slate-100" onclick="event.stopPropagation()">
+        <div class="flex items-center justify-between pb-4 border-b border-slate-100">
+            <div class="flex items-center gap-2">
+                <span class="p-2 rounded-xl bg-blue-50 text-blue-600 text-base">📤</span>
+                <div>
+                    <h3 class="font-bold text-slate-800 text-lg">Share Store & QR</h3>
+                    <p class="text-xs text-slate-500">{{ manager.shop_name }}</p>
+                </div>
+            </div>
+            <button onclick="closeShareModal()" class="text-slate-400 hover:text-slate-600 p-1.5 rounded-full hover:bg-slate-100 transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+        </div>
+
+        <div class="py-5 text-center">
+            <div class="p-3 bg-white border-2 border-slate-100 rounded-2xl shadow-inner inline-block mb-3">
+                <img src="{{ url_for('static', filename='qrs/' + manager.shop_slug + '.png') }}" alt="QR Code" class="w-36 h-36 mx-auto object-contain">
+            </div>
+            <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200 flex items-center justify-between gap-2 text-xs">
+                <span class="font-mono text-slate-600 truncate text-left">{{ shop_url }}</span>
+                <button onclick="copyShopLink()" class="font-bold text-blue-600 hover:text-blue-800 flex-shrink-0 px-2 py-1 bg-white rounded-md border border-slate-200 shadow-xs">
+                    <span id="modalCopyBtnText">Copy</span>
+                </button>
+            </div>
+        </div>
+
+        <div class="space-y-2.5">
+            <button onclick="shareOnWhatsApp()" class="w-full flex items-center justify-center gap-2 py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold shadow-md transition-all">
+                <span>💬</span> Share via WhatsApp
+            </button>
+            
+            <div class="grid grid-cols-2 gap-2">
+                <button onclick="openPrintModal(); closeShareModal();" class="flex items-center justify-center gap-1.5 py-2.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold transition-all border border-slate-200">
+                    <svg class="w-4 h-4 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+                    Print Standee
+                </button>
+                <a href="{{ url_for('static', filename='qrs/' + manager.shop_slug + '.png') }}" download="{{ manager.shop_slug }}-qr.png" class="flex items-center justify-center gap-1.5 py-2.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold transition-all border border-slate-200">
+                    <svg class="w-4 h-4 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                    Save QR (PNG)
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Print Poster / Table Standee Modal -->
+<div id="printModal" class="fixed inset-0 z-50 hidden bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto" onclick="closePrintModal()">
+    <div class="relative w-full max-w-lg bg-white rounded-3xl overflow-hidden shadow-2xl p-6 sm:p-8 border border-slate-200 my-8" onclick="event.stopPropagation()">
+        <button onclick="closePrintModal()" class="no-print absolute top-4 right-4 z-10 text-slate-400 hover:text-slate-600 p-2 rounded-full hover:bg-slate-100 transition-colors">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+
+        <!-- Printable Card Container -->
+        <div id="printableStandee" class="text-center p-6 bg-gradient-to-b from-slate-50 to-white rounded-2xl border-2 border-slate-200 shadow-sm">
+            <div class="mb-4">
+                <span class="inline-block px-3 py-1 bg-blue-600 text-white rounded-full text-xs font-black tracking-wider uppercase mb-2">Digital Catalog</span>
+                <h2 class="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">{{ manager.shop_name }}</h2>
+                <p class="text-xs text-slate-500 mt-1 font-medium">Scan below to browse our live catalog & place orders</p>
+            </div>
+
+            <div class="my-5 p-4 bg-white rounded-2xl border-2 border-slate-900/10 shadow-lg inline-block">
+                <img src="{{ url_for('static', filename='qrs/' + manager.shop_slug + '.png') }}" alt="Store QR Code" class="w-56 h-56 mx-auto object-contain">
+            </div>
+
+            <div class="space-y-2 mt-2">
+                <div class="flex items-center justify-center gap-2 text-xs font-bold text-slate-700">
+                    <span>📱 1. Open Camera</span>
+                    <span>&bull;</span>
+                    <span>🔍 2. Scan QR</span>
+                    <span>&bull;</span>
+                    <span>🛍️ 3. Order</span>
+                </div>
+                <p class="text-[11px] font-mono text-slate-400 truncate">{{ shop_url }}</p>
+            </div>
+        </div>
+
+        <div class="no-print mt-6 flex gap-3">
+            <button onclick="printStandee()" class="flex-1 py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold shadow-lg flex items-center justify-center gap-2 transition-all">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+                Print Standee / Poster
+            </button>
+            <button onclick="closePrintModal()" class="py-3 px-5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-semibold transition-all">
+                Close
+            </button>
+        </div>
+    </div>
+</div>
+
+<style>
+@media print {
+    body * {
+        visibility: hidden !important;
+    }
+    #printModal, #printModal * {
+        visibility: visible !important;
+    }
+    #printModal {
+        position: fixed !important;
+        left: 0 !important;
+        top: 0 !important;
+        width: 100% !important;
+        height: 100% !important;
+        background: white !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+    .no-print {
+        display: none !important;
+    }
+    #printableStandee {
+        border: 2px solid #000 !important;
+        box-shadow: none !important;
+        width: 100% !important;
+        max-width: 500px !important;
+        margin: auto !important;
+    }
+}
+</style>
+
+<!-- Image Preview Modal -->
+<div id="imageModal" class="fixed inset-0 z-50 hidden bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" onclick="closeImageModal()">
+    <div class="relative max-w-3xl max-h-[90vh] bg-white rounded-2xl overflow-hidden shadow-2xl p-3" onclick="event.stopPropagation()">
+        <button onclick="closeImageModal()" class="absolute top-4 right-4 z-10 bg-slate-900/80 hover:bg-slate-900 text-white rounded-full p-2 transition-colors">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+        <img id="modalImage" src="" alt="Full view" class="max-h-[80vh] w-auto max-w-full rounded-xl object-contain mx-auto">
+        <p id="modalCaption" class="text-center text-sm font-semibold text-slate-700 mt-3 pb-1"></p>
+    </div>
+</div>
+{% endblock %}
+

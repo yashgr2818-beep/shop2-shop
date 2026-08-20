@@ -1,0 +1,159 @@
+{% extends 'base.html' %}
+{% block title %}Orders - {{ manager.shop_name }}{% endblock %}
+
+{% block content %}
+<div class="mb-8">
+    <h1 class="text-3xl font-bold text-slate-800">Orders</h1>
+    <p class="text-slate-500 mt-1">Manage your customer orders and update their status.</p>
+</div>
+
+<div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+    <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-slate-200">
+            <thead class="bg-slate-50">
+                <tr>
+                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Order ID</th>
+                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Customer</th>
+                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Total</th>
+                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Status</th>
+                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Payment</th>
+                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-slate-200">
+                {% for data in orders_data %}
+                <tr>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="text-sm font-medium text-slate-900">#{{ data.order.order_id }}</div>
+                        <div class="text-xs text-slate-500">{{ data.order.created_at }}</div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="text-sm text-slate-900 font-semibold">{{ data.order.customer_name }}</div>
+                        <div class="text-sm text-slate-500">{{ data.order.customer_phone }}</div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-900 font-bold">
+                        ₹{{ "{:,.0f}".format(data.order.total_amount) }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        {% if data.order.status == 'Pending' %}
+                            <span class="px-2.5 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-amber-100 text-amber-800">⏳ Pending</span>
+                        {% elif data.order.status == 'Packed' %}
+                            <span class="px-2.5 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">📦 Packed</span>
+                        {% elif data.order.status == 'Completed' or data.order.status == 'Delivered' %}
+                            <span class="px-2.5 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-emerald-100 text-emerald-800">✅ Delivered</span>
+                        {% else %}
+                            <span class="px-2.5 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">❌ Cancelled</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        {% if data.order.payment_status == 'Paid' %}
+                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Paid</span>
+                        {% else %}
+                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-slate-100 text-slate-800">Unpaid</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
+                        <button onclick="openOrderModal({{ data.order.order_id }}, '{{ data.order.status }}', '{{ data.order.payment_status }}')" class="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-xs font-bold hover:bg-slate-800 transition">Update</button>
+                        <button onclick="toggleDetails('details-{{ data.order.order_id }}')" class="px-3 py-1.5 bg-slate-100 text-slate-700 rounded-lg text-xs font-bold hover:bg-slate-200 transition">Details</button>
+                    </td>
+                </tr>
+                <tr id="details-{{ data.order.order_id }}" class="hidden bg-slate-50">
+                    <td colspan="6" class="px-6 py-4 space-y-3">
+                        <h4 class="text-xs font-bold text-slate-700 uppercase tracking-wider">Order Items & WhatsApp Alerts:</h4>
+                        <ul class="text-sm text-slate-600 space-y-1">
+                            {% for item in data.order_items %}
+                                <li class="flex items-center justify-between border-b border-slate-200/60 pb-1">
+                                    <span>• {{ item.quantity }}x {{ item.name }} (₹{{ "{:,.0f}".format(item.price_at_time) }} each)</span>
+                                    <span class="text-xs text-slate-400 font-mono">Stock: {{ item.stock_qty }} | Packed: {{ item.packed_qty }}</span>
+                                </li>
+                            {% endfor %}
+                        </ul>
+
+                        <!-- WhatsApp Lifecycle Actions -->
+                        <div class="pt-2 flex flex-wrap gap-2">
+                            {% if data.wa_packed_link != '#' %}
+                            <a href="{{ data.wa_packed_link }}" target="_blank" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 transition">
+                                💬 WhatsApp "Order Packed"
+                            </a>
+                            <a href="{{ data.wa_delivered_link }}" target="_blank" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-bold hover:bg-blue-700 transition">
+                                💬 WhatsApp "Order Delivered"
+                            </a>
+                            <a href="{{ data.wa_cancelled_link }}" target="_blank" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-700 text-white rounded-lg text-xs font-bold hover:bg-slate-800 transition">
+                                💬 WhatsApp "Order Cancelled"
+                            </a>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="6" class="px-6 py-10 text-center text-slate-500">
+                        No orders found.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Update Status Modal -->
+<div id="statusModal" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50">
+            <h3 class="text-lg font-bold text-slate-800">Update Order Status</h3>
+            <button onclick="closeOrderModal()" class="text-slate-400 hover:text-slate-600">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+        </div>
+        <form action="{{ url_for('manager.update_order_status') }}" method="POST" class="p-6 space-y-4">
+            <input type="hidden" name="order_id" id="modal_order_id">
+            
+            <div>
+                <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Order Lifecycle Status</label>
+                <select name="status" id="modal_status" class="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl font-semibold text-sm focus:ring-2 focus:ring-slate-900 focus:outline-none">
+                    <option value="Pending">⏳ Pending</option>
+                    <option value="Packed">📦 Packed (Reserve Stock)</option>
+                    <option value="Completed">✅ Delivered / Completed</option>
+                    <option value="Cancelled">❌ Cancelled (Auto-Restock Items)</option>
+                </select>
+            </div>
+            
+            <div>
+                <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Payment Status</label>
+                <select name="payment_status" id="modal_payment_status" class="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl font-semibold text-sm focus:ring-2 focus:ring-slate-900 focus:outline-none">
+                    <option value="Unpaid">Unpaid</option>
+                    <option value="Paid">Paid</option>
+                </select>
+            </div>
+            
+            <div class="pt-4 flex justify-end gap-3">
+                <button type="button" onclick="closeOrderModal()" class="px-4 py-2 border border-slate-300 rounded-xl text-slate-700 hover:bg-slate-50 font-semibold text-sm">Cancel</button>
+                <button type="submit" class="px-5 py-2 bg-slate-900 text-white rounded-xl hover:bg-slate-800 font-bold text-sm shadow-sm">Save Changes</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    function toggleDetails(id) {
+        const el = document.getElementById(id);
+        if (el.classList.contains('hidden')) {
+            el.classList.remove('hidden');
+        } else {
+            el.classList.add('hidden');
+        }
+    }
+    
+    function openOrderModal(orderId, currentStatus, currentPayment) {
+        document.getElementById('modal_order_id').value = orderId;
+        document.getElementById('modal_status').value = currentStatus;
+        document.getElementById('modal_payment_status').value = currentPayment;
+        document.getElementById('statusModal').classList.remove('hidden');
+    }
+    
+    function closeOrderModal() {
+        document.getElementById('statusModal').classList.add('hidden');
+    }
+</script>
+{% endblock %}

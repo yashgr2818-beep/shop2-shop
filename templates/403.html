@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>403 Access Blocked</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>body { font-family: 'Inter', sans-serif; }</style>
+</head>
+<body class="bg-slate-900 text-white min-h-screen flex items-center justify-center p-4">
+    <div class="max-w-md w-full text-center bg-slate-800/80 backdrop-blur-md p-8 rounded-3xl border border-red-500/30 shadow-2xl">
+        <div class="w-20 h-20 bg-red-500/10 text-red-500 rounded-full flex items-center justify-center mx-auto mb-6 text-4xl border border-red-500/20">
+            ⛔
+        </div>
+        <h1 class="text-3xl font-extrabold text-white mb-2">Access Restricted</h1>
+        <p class="text-slate-400 text-sm mb-6">
+            Your IP address (<code class="bg-slate-950 text-red-400 px-2 py-0.5 rounded font-mono text-xs">{{ ip_address }}</code>) has been blocked by system administration security controls.
+        </p>
+        <div class="bg-slate-900/60 p-4 rounded-xl text-xs text-slate-400 border border-slate-700 text-left space-y-1">
+            <p><strong class="text-slate-300">Reason:</strong> Security Policy Violation / IP Blacklist</p>
+            <p><strong class="text-slate-300">Action Required:</strong> Contact system administrator if you believe this is an error.</p>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,293 @@
+{% extends "base.html" %}
+
+{% block title %}Staff Accounts & Role Permissions - {{ manager.shop_name }}{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto px-4 py-8 space-y-8">
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900 text-white p-6 rounded-3xl shadow-xl">
+        <div>
+            <h1 class="text-2xl font-extrabold flex items-center gap-2">
+                👥 Staff Sub-Accounts
+            </h1>
+            <p class="text-slate-400 text-sm mt-1">Create sub-accounts for your team members and manage their role permissions.</p>
+        </div>
+        <div class="flex items-center gap-3 self-start sm:self-auto">
+            <button onclick="toggleCreateStaffForm()" class="px-4.5 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-sm font-bold shadow-md transition flex items-center gap-2 cursor-pointer">
+                ➕ Create Staff Account
+            </button>
+            <a href="{{ url_for('manager.dashboard') }}" class="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 rounded-xl text-sm font-semibold transition">
+                ← Dashboard
+            </a>
+        </div>
+    </div>
+
+    <!-- Dedicated Staff Portal Link Card -->
+    <div class="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200/80 rounded-3xl p-6 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div>
+            <div class="flex items-center gap-2">
+                <span class="p-2 bg-purple-600 text-white rounded-xl text-xs font-bold">STAFF PORTAL</span>
+                <h2 class="text-lg font-bold text-purple-950">Dedicated Staff Login Portal for {{ manager.shop_name }}</h2>
+            </div>
+            <p class="text-xs text-purple-800/80 mt-1">Share this dedicated login URL with your staff members so they can log in directly to {{ manager.shop_name }}.</p>
+            <p class="text-xs font-mono font-semibold text-purple-900 mt-2 bg-white/90 px-3.5 py-1.5 rounded-xl inline-block border border-purple-200 shadow-sm" id="staffPortalUrl">
+                {{ url_for('manager.staff_login', shop_slug=manager.shop_slug, _external=True) }}
+            </p>
+        </div>
+        <div class="flex items-center gap-2 flex-wrap">
+            <button onclick="copyStaffPortalUrl()" class="px-4 py-2.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-xl shadow-sm transition flex items-center gap-1.5 cursor-pointer">
+                📋 <span id="copyStaffBtnText">Copy Staff Portal Link</span>
+            </button>
+            <a href="{{ url_for('manager.staff_login', shop_slug=manager.shop_slug) }}" target="_blank" class="px-4 py-2.5 bg-white hover:bg-purple-100 text-purple-800 text-xs font-bold rounded-xl border border-purple-300 shadow-sm transition flex items-center gap-1.5">
+                🔑 Open Staff Login Page ↗
+            </a>
+        </div>
+    </div>
+
+    <!-- Collapsible / Expandable Create Staff Account Form -->
+    <div id="createStaffCard" class="hidden transition-all duration-300 bg-white p-6 rounded-3xl shadow-xl border border-purple-200 space-y-4 relative">
+        <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+            <h2 class="text-lg font-bold text-slate-900 flex items-center gap-2">
+                ➕ Create Staff Sub-Account
+            </h2>
+            <button onclick="toggleCreateStaffForm()" class="text-slate-400 hover:text-slate-600 text-sm font-bold px-2 py-1 rounded-lg hover:bg-slate-100 transition">
+                ✕ Close
+            </button>
+        </div>
+        <form action="{{ url_for('manager.add_staff') }}" method="POST" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+                <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Staff Username</label>
+                <input type="text" name="username" required placeholder="e.g. staff_order_1" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-slate-900 focus:outline-none">
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Password</label>
+                <input type="password" name="password" required placeholder="••••••••" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-slate-900 focus:outline-none">
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Assigned Role & Permission</label>
+                <select name="role" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-slate-900 focus:outline-none">
+                    <option value="Order_Only">📦 Order Manager (Only /manager/orders)</option>
+                    <option value="Stock_Only">📊 Stock Manager (Only /manager/bulk_stock)</option>
+                    <option value="Full">⭐ Full Manager Assistant</option>
+                </select>
+            </div>
+            <div class="md:col-span-3 flex justify-end gap-3 pt-2">
+                <button type="button" onclick="toggleCreateStaffForm()" class="px-4 py-2.5 border border-slate-300 text-slate-700 rounded-xl text-sm font-semibold hover:bg-slate-50 transition">
+                    Cancel
+                </button>
+                <button type="submit" class="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-sm transition shadow-sm cursor-pointer">
+                    Create Sub-Account
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Staff List Table (Full Width) -->
+    <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
+        <h2 class="text-lg font-bold text-slate-900 mb-4 flex items-center justify-between">
+            <span>Active Sub-Accounts</span>
+            <span class="text-xs font-semibold text-slate-500">{{ staff_members|length }} total</span>
+        </h2>
+
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm">
+                <thead class="bg-slate-50 text-slate-500 font-semibold uppercase text-xs">
+                    <tr>
+                        <th class="py-3 px-4 rounded-l-xl">User ID</th>
+                        <th class="py-3 px-4">Username</th>
+                        <th class="py-3 px-4">Role & Permissions</th>
+                        <th class="py-3 px-4">Status</th>
+                        <th class="py-3 px-4">Last Active</th>
+                        <th class="py-3 px-4">Created At</th>
+                        <th class="py-3 px-4 text-right rounded-r-xl">Action</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for member in staff_members %}
+                    <tr class="hover:bg-slate-50/80 transition">
+                        <td class="py-3.5 px-4 font-mono font-bold text-slate-500 text-xs">
+                            #{{ member.staff_id }}
+                        </td>
+                        <td class="py-3.5 px-4 font-bold text-slate-800">
+                            👤 {{ member.username }}
+                        </td>
+                        <td class="py-3.5 px-4">
+                            <!-- Quick Role Permission Changer -->
+                            <form action="{{ url_for('manager.update_staff_role', staff_id=member.staff_id) }}" method="POST" class="inline-flex items-center gap-1.5">
+                                <select name="role" onchange="this.form.submit()" class="text-xs font-bold py-1.5 px-3 rounded-full border cursor-pointer transition focus:ring-2 focus:ring-indigo-500 focus:outline-none shadow-sm {% if member.role == 'Order_Only' %}bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100{% elif member.role == 'Stock_Only' %}bg-blue-50 text-blue-900 border-blue-300 hover:bg-blue-100{% else %}bg-purple-50 text-purple-900 border-purple-300 hover:bg-purple-100{% endif %}" title="Change role permissions for {{ member.username }}">
+                                    <option value="Order_Only" {% if member.role == 'Order_Only' %}selected{% endif %}>📦 Order Manager</option>
+                                    <option value="Stock_Only" {% if member.role == 'Stock_Only' %}selected{% endif %}>📊 Stock Manager</option>
+                                    <option value="Full" {% if member.role == 'Full' %}selected{% endif %}>⭐ Full Manager</option>
+                                </select>
+                            </form>
+                        </td>
+                        <td class="py-3.5 px-4">
+                            {% if member.is_active != 0 %}
+                            <span class="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 inline-flex items-center gap-1">
+                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> Active
+                            </span>
+                            {% else %}
+                            <span class="px-2.5 py-1 rounded-full text-xs font-bold bg-red-100 text-red-800 border border-red-200 inline-flex items-center gap-1">
+                                <span class="w-1.5 h-1.5 rounded-full bg-red-500"></span> Disabled
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td class="py-3.5 px-4 text-xs font-medium text-slate-600">
+                            {% if member.last_active %}
+                                <span class="font-mono bg-slate-100 px-2 py-1 rounded border border-slate-200">🕒 {{ member.last_active }}</span>
+                            {% else %}
+                                <span class="text-slate-400 italic">Never logged in</span>
+                            {% endif %}
+                        </td>
+                        <td class="py-3.5 px-4 text-xs text-slate-500">
+                            {{ member.created_at }}
+                        </td>
+                        <td class="py-3.5 px-4 text-right">
+                            <div class="flex items-center justify-end gap-2">
+                                <button type="button" onclick="openPermissionModal('{{ member.staff_id }}', '{{ member.username }}', '{{ member.role }}')" class="text-xs font-bold text-indigo-700 hover:text-indigo-900 px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 transition border border-indigo-200 cursor-pointer" title="Edit permission settings">
+                                    🛡️ Permissions
+                                </button>
+                                <form action="{{ url_for('manager.toggle_staff_status', staff_id=member.staff_id) }}" method="POST">
+                                    {% if member.is_active != 0 %}
+                                        <button type="submit" class="text-xs font-bold text-amber-700 hover:text-amber-800 px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 transition border border-amber-200 cursor-pointer" title="Disable login for this staff member">
+                                            ⛔ Disable
+                                        </button>
+                                    {% else %}
+                                        <button type="submit" class="text-xs font-bold text-emerald-700 hover:text-emerald-800 px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 transition border border-emerald-200 cursor-pointer" title="Enable login for this staff member">
+                                            ✅ Enable
+                                        </button>
+                                    {% endif %}
+                                </form>
+                                <form action="{{ url_for('manager.delete_staff', staff_id=member.staff_id) }}" method="POST" onsubmit="return confirm('Revoke access for {{ member.username }}?');">
+                                    <button type="submit" class="text-xs font-bold text-red-600 hover:text-red-800 px-2.5 py-1 rounded-lg bg-red-50 hover:bg-red-100 transition border border-red-200 cursor-pointer">
+                                        Revoke Access
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="text-center py-8 text-slate-400 text-sm">No sub-accounts created yet. Click "+ Create Staff Account" at the top right to get started.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Change Permission / Role Details -->
+<div id="permissionModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
+    <div class="bg-white rounded-3xl shadow-2xl max-w-md w-full p-6 space-y-5 border border-slate-100 animate-in fade-in zoom-in-95 duration-200">
+        <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+            <h3 class="text-lg font-bold text-slate-900 flex items-center gap-2">
+                🛡️ Change Role Permissions
+            </h3>
+            <button onclick="closePermissionModal()" class="text-slate-400 hover:text-slate-600 font-bold px-2 py-1 rounded-lg hover:bg-slate-100 transition">
+                ✕
+            </button>
+        </div>
+
+        <p class="text-xs text-slate-600">
+            Select the access level for staff member <span id="modalStaffUsername" class="font-bold text-slate-900"></span>:
+        </p>
+
+        <form id="permissionForm" method="POST" class="space-y-4">
+            <div class="space-y-2.5">
+                <label class="flex items-start gap-3 p-3.5 rounded-2xl border border-slate-200 hover:border-amber-400 hover:bg-amber-50/50 cursor-pointer transition">
+                    <input type="radio" name="role" value="Order_Only" id="role_order" class="mt-1 text-amber-600 focus:ring-amber-500">
+                    <div>
+                        <div class="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                            <span>📦 Order Manager</span>
+                            <span class="px-1.5 py-0.5 bg-amber-100 text-amber-800 text-[10px] rounded font-bold">Limited</span>
+                        </div>
+                        <p class="text-[11px] text-slate-500 mt-0.5">Can view orders, update order status, and restock items upon cancellation.</p>
+                    </div>
+                </label>
+
+                <label class="flex items-start gap-3 p-3.5 rounded-2xl border border-slate-200 hover:border-blue-400 hover:bg-blue-50/50 cursor-pointer transition">
+                    <input type="radio" name="role" value="Stock_Only" id="role_stock" class="mt-1 text-blue-600 focus:ring-blue-500">
+                    <div>
+                        <div class="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                            <span>📊 Stock Manager</span>
+                            <span class="px-1.5 py-0.5 bg-blue-100 text-blue-800 text-[10px] rounded font-bold">Inventory</span>
+                        </div>
+                        <p class="text-[11px] text-slate-500 mt-0.5">Can access dashboard and update product stock quantities via bulk inventory.</p>
+                    </div>
+                </label>
+
+                <label class="flex items-start gap-3 p-3.5 rounded-2xl border border-slate-200 hover:border-purple-400 hover:bg-purple-50/50 cursor-pointer transition">
+                    <input type="radio" name="role" value="Full" id="role_full" class="mt-1 text-purple-600 focus:ring-purple-500">
+                    <div>
+                        <div class="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                            <span>⭐ Full Manager Assistant</span>
+                            <span class="px-1.5 py-0.5 bg-purple-100 text-purple-800 text-[10px] rounded font-bold">Full Access</span>
+                        </div>
+                        <p class="text-[11px] text-slate-500 mt-0.5">Full assistant access across orders, products, and dashboard (excluding staff/financial reports).</p>
+                    </div>
+                </label>
+            </div>
+
+            <div class="flex justify-end gap-2.5 pt-2 border-t border-slate-100">
+                <button type="button" onclick="closePermissionModal()" class="px-4 py-2 border border-slate-300 text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-50 transition cursor-pointer">
+                    Cancel
+                </button>
+                <button type="submit" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition shadow-sm cursor-pointer">
+                    Save Permission
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function toggleCreateStaffForm() {
+    const card = document.getElementById('createStaffCard');
+    card.classList.toggle('hidden');
+}
+
+function openPermissionModal(staffId, username, currentRole) {
+    const modal = document.getElementById('permissionModal');
+    const form = document.getElementById('permissionForm');
+    const userSpan = document.getElementById('modalStaffUsername');
+    
+    form.action = `/manager/staff/${staffId}/update_role`;
+    userSpan.textContent = username;
+
+    if (currentRole === 'Order_Only') {
+        document.getElementById('role_order').checked = true;
+    } else if (currentRole === 'Stock_Only') {
+        document.getElementById('role_stock').checked = true;
+    } else {
+        document.getElementById('role_full').checked = true;
+    }
+
+    modal.classList.remove('hidden');
+}
+
+function closePermissionModal() {
+    document.getElementById('permissionModal').classList.add('hidden');
+}
+
+function copyStaffPortalUrl() {
+    const urlText = document.getElementById('staffPortalUrl').textContent.trim();
+    navigator.clipboard.writeText(urlText).then(() => {
+        const btnText = document.getElementById('copyStaffBtnText');
+        if (btnText) btnText.textContent = "Copied! ✓";
+        showToast("✓ Staff Login Link copied to clipboard!");
+        setTimeout(() => {
+            if (btnText) btnText.textContent = "Copy Staff Portal Link";
+        }, 2500);
+    }).catch(() => {
+        const textarea = document.createElement('textarea');
+        textarea.value = urlText;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+        showToast("✓ Staff Login Link copied to clipboard!");
+    });
+}
+</script>
+{% endblock %}
