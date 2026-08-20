@@ -106,3 +106,15 @@ CREATE TABLE IF NOT EXISTS tbl_product_views (
     viewed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(product_id) REFERENCES tbl_products(product_id) ON DELETE CASCADE
 );
+
+-- Performance indexes (critical for fast lookups at scale)
+CREATE INDEX IF NOT EXISTS idx_products_manager_status ON tbl_products(manager_id, status);
+CREATE INDEX IF NOT EXISTS idx_orders_manager_created  ON tbl_orders(manager_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_orders_status           ON tbl_orders(manager_id, status);
+CREATE INDEX IF NOT EXISTS idx_order_items_order       ON tbl_order_items(order_id);
+CREATE INDEX IF NOT EXISTS idx_order_items_product     ON tbl_order_items(product_id);
+CREATE INDEX IF NOT EXISTS idx_visitor_sessions_mgr    ON tbl_visitor_sessions(manager_id, expires_at);
+CREATE INDEX IF NOT EXISTS idx_visitor_token           ON tbl_visitor_sessions(session_token);
+CREATE INDEX IF NOT EXISTS idx_cart_session            ON tbl_cart_items(session_id);
+CREATE INDEX IF NOT EXISTS idx_product_views_product   ON tbl_product_views(product_id);
+CREATE INDEX IF NOT EXISTS idx_staff_manager           ON tbl_staff_accounts(manager_id);

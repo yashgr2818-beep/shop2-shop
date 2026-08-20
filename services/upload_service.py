@@ -30,18 +30,24 @@ def init_cloudinary():
                 secure=True
             )
 
-def upload_product_image_file(file_obj, manager_id, sku_or_id, local_image_folder=None):
+def upload_product_image_file(file_obj, manager_id, sku_or_id, local_image_folder=None, shop_slug=None):
     """Uploads a product image to Cloudinary (preferred) or saves locally as fallback.
+    
+    Cloudinary folder structure:
+      - shops/<shop_slug>/products/  (when shop_slug provided — recommended)
+      - shops/<manager_id>/products/ (fallback when shop_slug not available)
+    
     Returns: (image_path_or_url, error_message)
     """
     # 1. Try Cloudinary first
     if is_cloudinary_configured():
         try:
             init_cloudinary()
-            clean_id = re.sub(r'[^a-zA-Z0-9_-]', '_', str(sku_or_id)).strip('_')
+            clean_id    = re.sub(r'[^a-zA-Z0-9_-]', '_', str(sku_or_id)).strip('_')
+            folder_name = re.sub(r'[^a-z0-9_-]', '-', str(shop_slug or manager_id).lower()).strip('-')
             res = cloudinary.uploader.upload(
                 file_obj,
-                folder=f"shops/{manager_id}/products",
+                folder=f"shops/{folder_name}/products",
                 public_id=f"prod_{clean_id}",
                 overwrite=True,
                 resource_type="image",
@@ -57,7 +63,7 @@ def upload_product_image_file(file_obj, manager_id, sku_or_id, local_image_folde
             print(f"Cloudinary upload error: {e}. Falling back to local storage.")
             if hasattr(file_obj, 'seek'):
                 file_obj.seek(0)
-    
+
     # 2. Local fallback if Cloudinary is not configured or fails
     if local_image_folder:
         try:
@@ -65,14 +71,14 @@ def upload_product_image_file(file_obj, manager_id, sku_or_id, local_image_folde
             if img.mode in ('RGBA', 'P'):
                 img = img.convert('RGB')
             img.thumbnail((800, 800))
-            clean_id = re.sub(r'[^a-zA-Z0-9_-]', '_', str(sku_or_id)).strip('_')
+            clean_id     = re.sub(r'[^a-zA-Z0-9_-]', '_', str(sku_or_id)).strip('_')
             new_filename = f"{manager_id}_{clean_id}.jpg"
-            save_path = os.path.join(local_image_folder, new_filename)
+            save_path    = os.path.join(local_image_folder, new_filename)
             img.save(save_path, format="JPEG", quality=85)
             return new_filename, None
         except Exception as e:
             return None, f"Image processing failed: {str(e)}"
-            
+
     return None, "No storage provider available for image"
 
 def generate_next_sku(db, manager_id):
@@ -166,43 +172,50 @@ def process_csv_upload(file_stream, manager_id):
 def process_image_upload(file, manager_id, image_folder):
     if not file:
         return False, "No file provided"
-        
+
     filename = secure_filename(file.filename)
     if not filename:
         return False, "Invalid filename"
-        
-    # Strip extension to get SKU or identifier
-    file_identifier, ext = os.path.splitext(filename)
+
+    file_identifier, _ext = os.path.splitext(filename)
     file_identifier = file_identifier.strip()
-    
+
     db = get_db()
-    # Check if identifier matches SKU, candidate formatted SKU, product_id, or name
+
+    # Fetch product by SKU, product_id, or name
     product = db.execute(
-        """SELECT product_id, sku FROM tbl_products 
-           WHERE manager_id = ? AND (
-               sku = ? 
-               OR sku = ? 
-               OR sku LIKE ?
-               OR product_id = ?
-               OR LOWER(name) = ?
+        """SELECT p.product_id, p.sku, m.shop_slug
+           FROM tbl_products p
+           JOIN tbl_managers m ON p.manager_id = m.manager_id
+           WHERE p.manager_id = ? AND (
+               p.sku = ?
+               OR p.sku = ?
+               OR p.sku LIKE ?
+               OR p.product_id = ?
+               OR LOWER(p.name) = ?
            )
-           LIMIT 1""", 
-        (manager_id, file_identifier, f"SKU-{manager_id}-{file_identifier}", f"%{file_identifier}", file_identifier, file_identifier.lower())
+           LIMIT 1""",
+        (manager_id, file_identifier,
+         f"SKU-{manager_id}-{file_identifier}",
+         f"%{file_identifier}",
+         file_identifier, file_identifier.lower())
     ).fetchone()
-    
+
     if not product:
         return False, f"No matching product found for: {file_identifier}"
-        
+
     # Upload via unified image uploader (Cloudinary / local fallback)
-    img_result, err = upload_product_image_file(file.stream, manager_id, product['sku'], image_folder)
+    img_result, err = upload_product_image_file(
+        file.stream, manager_id, product['sku'],
+        image_folder, shop_slug=product['shop_slug']
+    )
     if err or not img_result:
         return False, err or "Failed to upload image"
-        
-    # Update DB
+
     db.execute(
         "UPDATE tbl_products SET image_path = ? WHERE product_id = ?",
         (img_result, product['product_id'])
     )
     db.commit()
-    
     return True, f"Image attached to {product['sku']}"
+
