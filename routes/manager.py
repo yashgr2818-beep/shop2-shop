@@ -698,8 +698,8 @@ def orders():
         return render_template('manager/orders.html', manager=manager, orders_data=[])
 
     # ── Eliminate N+1: single batch fetch for ALL order items ──────────────────
-    order_ids = [o['order_id'] for o in order_rows]
-    placeholders = ','.join('?' * len(order_ids))
+    order_ids    = tuple(o['order_id'] for o in order_rows)  # tuple required by LibSQL
+    placeholders = ', '.join(['?'] * len(order_ids))
     all_items = db.execute(f'''
         SELECT oi.order_id, oi.quantity, p.name, p.packed_qty, p.stock_qty
         FROM tbl_order_items oi
@@ -712,7 +712,7 @@ def orders():
     for item in all_items:
         items_by_order[item['order_id']].append(item)
 
-    shop_name = manager['shop_name']
+    shop_name   = manager['shop_name']
     orders_data = []
     for o in order_rows:
         items = items_by_order[o['order_id']]
@@ -723,22 +723,24 @@ def orders():
 
         item_names = ", ".join(f"{i['name']} (x{i['quantity']})" for i in items)
 
-        wa_packed    = f"Hello {o['customer_name']}, your order #{o['order_id']} ({item_names}) at {shop_name} has been PACKED and is ready for dispatch! Total: ₹{o['total_amount']}."
+        wa_packed    = f"Hello {o['customer_name']}, your order #{o['order_id']} ({item_names}) at {shop_name} has been PACKED and is ready for dispatch! Total: \u20b9{o['total_amount']}."
         wa_delivered = f"Hello {o['customer_name']}, your order #{o['order_id']} at {shop_name} has been DELIVERED! Thank you for shopping with us."
         wa_cancelled = f"Hello {o['customer_name']}, your order #{o['order_id']} at {shop_name} has been CANCELLED and items have been unpacked back into stock."
 
-        def wa_link(text):
-            return f"https://wa.me/{phone_clean}?text={urllib.parse.quote(text)}" if phone_clean else "#"
+        # Build WhatsApp links inline (avoid closure-in-loop bug)
+        def _wa(text, pc=phone_clean):
+            return f"https://wa.me/{pc}?text={urllib.parse.quote(text)}" if pc else "#"
 
         orders_data.append({
-            'order':            o,
-            'order_items':      items,
-            'wa_packed_link':    wa_link(wa_packed),
-            'wa_delivered_link': wa_link(wa_delivered),
-            'wa_cancelled_link': wa_link(wa_cancelled),
+            'order':             o,
+            'order_items':       items,
+            'wa_packed_link':    _wa(wa_packed),
+            'wa_delivered_link': _wa(wa_delivered),
+            'wa_cancelled_link': _wa(wa_cancelled),
         })
 
     return render_template('manager/orders.html', manager=manager, orders_data=orders_data)
+
 
 
 # ── Update Order Status ───────────────────────────────────────────────────────
