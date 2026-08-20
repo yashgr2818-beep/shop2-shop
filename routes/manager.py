@@ -764,37 +764,55 @@ def update_order_status():
             'SELECT product_id, quantity FROM tbl_order_items WHERE order_id = ?', (order_id,)
         ).fetchall()
 
-        was_active = old_status in ('Pending', 'Packed', 'Delivered', 'Completed')
-        is_active  = new_status in ('Pending', 'Packed', 'Delivered', 'Completed')
+        # ── State transition stock engine ──────────────────────────────────
+        # 1. Moving INTO Packed from (Pending or Cancelled)
+        if old_status in ('Pending', 'Cancelled') and new_status == 'Packed':
+            for item in items:
+                db.execute(
+                    'UPDATE tbl_products SET stock_qty = MAX(0, stock_qty - ?), packed_qty = packed_qty + ? WHERE product_id = ?',
+                    (item['quantity'], item['quantity'], item['product_id'])
+                )
 
-        # Stock restoration / deduction
-        if was_active and new_status == 'Cancelled':
+        # 2. Moving OUT of Packed to (Pending or Cancelled) -> Unpack & Restock
+        elif old_status == 'Packed' and new_status in ('Pending', 'Cancelled'):
             for item in items:
-                db.execute('UPDATE tbl_products SET stock_qty = stock_qty + ? WHERE product_id = ?',
-                           (item['quantity'], item['product_id']))
-        elif old_status == 'Cancelled' and is_active:
-            for item in items:
-                db.execute('UPDATE tbl_products SET stock_qty = MAX(0, stock_qty - ?) WHERE product_id = ?',
-                           (item['quantity'], item['product_id']))
+                db.execute(
+                    'UPDATE tbl_products SET stock_qty = stock_qty + ?, packed_qty = MAX(0, packed_qty - ?) WHERE product_id = ?',
+                    (item['quantity'], item['quantity'], item['product_id'])
+                )
 
-        # Packed qty tracking
-        was_packed = (old_status == 'Packed')
-        is_packed  = (new_status == 'Packed')
-        if not was_packed and is_packed:
+        # 3. Moving from Packed to (Delivered or Completed) -> Dispatch from box
+        elif old_status == 'Packed' and new_status in ('Delivered', 'Completed'):
             for item in items:
-                db.execute('UPDATE tbl_products SET packed_qty = packed_qty + ? WHERE product_id = ?',
-                           (item['quantity'], item['product_id']))
-        elif was_packed and not is_packed:
+                db.execute(
+                    'UPDATE tbl_products SET packed_qty = MAX(0, packed_qty - ?) WHERE product_id = ?',
+                    (item['quantity'], item['product_id'])
+                )
+
+        # 4. Moving from (Delivered or Completed) to Cancelled -> Restock
+        elif old_status in ('Delivered', 'Completed') and new_status == 'Cancelled':
             for item in items:
-                db.execute('UPDATE tbl_products SET packed_qty = MAX(0, packed_qty - ?) WHERE product_id = ?',
-                           (item['quantity'], item['product_id']))
+                db.execute(
+                    'UPDATE tbl_products SET stock_qty = stock_qty + ? WHERE product_id = ?',
+                    (item['quantity'], item['product_id'])
+                )
+
+        # 5. Direct Pending -> Delivered/Completed (bypass Packed step)
+        elif old_status in ('Pending', 'Cancelled') and new_status in ('Delivered', 'Completed'):
+            for item in items:
+                db.execute(
+                    'UPDATE tbl_products SET stock_qty = MAX(0, stock_qty - ?) WHERE product_id = ?',
+                    (item['quantity'], item['product_id'])
+                )
 
         db.execute('UPDATE tbl_orders SET status = ?, payment_status = ? WHERE order_id = ?',
                    (new_status, payment_status, order_id))
         db.commit()
 
         if new_status == 'Cancelled':
-            flash(f'Order #{order_id} marked as Cancelled. Products restocked.', 'success')
+            flash(f'Order #{order_id} marked as Cancelled. Products unpacked and restocked back to shelf.', 'success')
+        elif new_status == 'Packed':
+            flash(f'Order #{order_id} marked as Packed. Stock deducted from shelf and reserved into packed dispatch.', 'success')
         else:
             flash(f'Order #{order_id} status updated to {new_status}.', 'success')
     else:

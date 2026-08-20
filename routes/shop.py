@@ -233,20 +233,13 @@ def checkout(shop_slug):
     order_rec = db.execute('SELECT order_id FROM tbl_orders WHERE order_uuid = ?', (order_uuid,)).fetchone()
     order_id = order_rec['order_id'] if order_rec else None
     
-    # Create Order Items and update stock
+    # Create Order Items
     for item in cart_items:
         db.execute('''
             INSERT INTO tbl_order_items (order_id, product_id, quantity, price_at_time)
             VALUES (?, ?, ?, ?)
         ''', (order_id, item['product_id'], item['quantity'], item['price_inr']))
-        
-        # Deduct stock, prevent going below zero
-        db.execute('''
-            UPDATE tbl_products 
-            SET stock_qty = MAX(0, stock_qty - ?)
-            WHERE product_id = ?
-        ''', (item['quantity'], item['product_id']))
-        
+
     # Clear Cart
     db.execute('DELETE FROM tbl_cart_items WHERE session_id=?', (session_id,))
     db.commit()
