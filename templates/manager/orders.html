@@ -64,7 +64,7 @@
                             {% for item in data.order_items %}
                                 <li class="flex items-center justify-between border-b border-slate-200/60 pb-1">
                                     <span>• {{ item.quantity }}x {{ item.name }} (₹{{ "{:,.0f}".format(item.price_at_time or 0) }} each)</span>
-                                    <span class="text-xs text-slate-400 font-mono">Stock: {{ item.stock_qty }} | Packed: {{ item.packed_qty }}</span>
+                                    <span class="text-xs font-mono text-slate-500 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-md">Available Stock: <strong class="text-slate-800">{{ item.stock_qty }}</strong> | Packed: <strong class="text-blue-600">{{ item.packed_qty }}</strong></span>
                                 </li>
                             {% endfor %}
                         </ul>
