@@ -109,20 +109,46 @@ def parse_user_agent(ua_string):
         
     return f"{device} • {browser}"
 
+import io
+
 def get_shop_base_url(request=None):
-    """Determines canonical shop base URL."""
+    """Determines canonical shop base URL considering Render, reverse proxies, custom domains, or local host."""
     render_url = os.environ.get('RENDER_EXTERNAL_URL')
-    if render_url:
+    if render_url and render_url.strip():
         return render_url.rstrip('/')
     
     if request:
+        proto = request.headers.get('X-Forwarded-Proto', request.scheme or 'http')
+        host = request.headers.get('X-Forwarded-Host', request.host)
+        if host:
+            # Force https on Render or Cloudflare domains
+            if 'onrender.com' in host or 'render.com' in host:
+                proto = 'https'
+            return f"{proto}://{host}".rstrip('/')
         return request.host_url.rstrip('/')
         
     host_ip = get_local_ip()
     return f"http://{host_ip}:5000"
 
+def generate_qr_image_bytes(target_url):
+    """Generates PNG QR code bytes directly in memory with zero disk dependency."""
+    qr = qrcode.QRCode(
+        version=1,
+        error_correction=qrcode.constants.ERROR_CORRECT_L,
+        box_size=10,
+        border=4,
+    )
+    qr.add_data(target_url)
+    qr.make(fit=True)
+
+    img = qr.make_image(fill_color="black", back_color="white")
+    buffer = io.BytesIO()
+    img.save(buffer, format='PNG')
+    buffer.seek(0)
+    return buffer.getvalue()
+
 def generate_shop_qr(shop_slug, qr_folder, base_url=None):
-    """Generate permanent QR code for the shop."""
+    """Generate permanent QR code for the shop on disk."""
     if not base_url:
         base_url = get_shop_base_url()
     else:
@@ -143,4 +169,5 @@ def generate_shop_qr(shop_slug, qr_folder, base_url=None):
     filepath = os.path.join(qr_folder, f"{shop_slug}.png")
     img.save(filepath)
     return f"{shop_slug}.png"
+
 

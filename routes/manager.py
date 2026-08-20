@@ -319,11 +319,12 @@ def dashboard():
     shop_url  = f"{shop_base_url}/shop/{manager['shop_slug']}"
     scan_url  = f"{shop_base_url}/scan/{manager['shop_slug']}"
 
-    # Ensure QR file exists
+    # Synchronize QR code file with active host/domain
     qr_filename = f"{manager['shop_slug']}.png"
-    qr_filepath = os.path.join(current_app.config['QR_FOLDER'], qr_filename)
-    if not os.path.exists(qr_filepath):
+    try:
         generate_shop_qr(manager['shop_slug'], current_app.config['QR_FOLDER'], shop_base_url)
+    except Exception:
+        pass
 
     # Analytics — combined into a single query for visitor session stats
     now_str = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')

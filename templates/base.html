@@ -290,7 +290,7 @@
         const baseUrl = window.location.origin;
         const storeUrl = `${baseUrl}/shop/${shopSlug}`;
         const scanUrl = `${baseUrl}/scan/${shopSlug}`;
-        const qrSrc = `/static/qrs/${qrFilename || (shopSlug + '.png')}`;
+        const qrSrc = `/shop/${shopSlug}/qr.png?origin=${encodeURIComponent(baseUrl)}`;
 
         nameHeading.textContent = shopName;
         qrImg.src = qrSrc;

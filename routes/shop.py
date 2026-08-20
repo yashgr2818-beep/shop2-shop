@@ -312,3 +312,25 @@ def scan(shop_slug):
         
     return redirect(url_for('shop.catalog', shop_slug=shop_slug, source='qr'))
 
+# ── Dynamic Live Shop QR Code (matches live Render/host URL automatically) ───
+@bp.route('/<shop_slug>/qr.png')
+def shop_qr_image(shop_slug):
+    """Dynamically renders the shop QR code PNG with the active live URL."""
+    from services.qr_service import generate_qr_image_bytes, get_shop_base_url
+    from flask import Response
+
+    origin = request.args.get('origin', '').strip()
+    if origin and origin.startswith(('http://', 'https://')):
+        base_url = origin.rstrip('/')
+    else:
+        base_url = get_shop_base_url(request)
+
+    scan_url = f"{base_url}/scan/{shop_slug}"
+    img_bytes = generate_qr_image_bytes(scan_url)
+    return Response(img_bytes, mimetype='image/png', headers={
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+    })
+
+
