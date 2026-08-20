@@ -234,13 +234,18 @@ def get_db():
 
 
 def init_db(app):
-    """Initialize database tables and run necessary migrations."""
+    """Initialize database tables if running local SQLite."""
+    if is_turso_configured(app):
+        # Turso cloud database is already migrated and hosted in the cloud.
+        # Avoid opening database connections in master process before Gunicorn forks workers.
+        return
+
     with app.app_context():
         db = get_db()
         with app.open_resource('schema.sql', mode='r') as f:
             db.cursor().executescript(f.read())
 
-        # Column migration helpers for existing databases
+        # Column migration helpers for existing local databases
         cursor = db.cursor()
         cols = [col[1] for col in cursor.execute("PRAGMA table_info(tbl_products)").fetchall()]
         if 'packed_qty' not in cols:
@@ -265,35 +270,6 @@ def init_db(app):
             cursor.execute("ALTER TABLE tbl_managers ADD COLUMN show_price INTEGER DEFAULT 1")
         if 'secure_url_mode' not in cols_mgr:
             cursor.execute("ALTER TABLE tbl_managers ADD COLUMN secure_url_mode INTEGER DEFAULT 0")
-
-        # Migrate tbl_products check constraint if needed
-        table_sql = cursor.execute("SELECT sql FROM sqlite_master WHERE name='tbl_products'").fetchone()
-        if table_sql and "CHECK(status IN ('Active', 'Draft'))" in table_sql[0]:
-            cursor.execute("PRAGMA foreign_keys=OFF")
-            cursor.execute("""
-                CREATE TABLE tbl_products_new (
-                    product_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    manager_id INTEGER,
-                    sku TEXT NOT NULL,
-                    name TEXT NOT NULL,
-                    description TEXT,
-                    price_inr REAL NOT NULL,
-                    stock_qty INTEGER DEFAULT 0,
-                    packed_qty INTEGER DEFAULT 0,
-                    show_price INTEGER DEFAULT 1,
-                    status TEXT DEFAULT 'Active' CHECK(status IN ('Active', 'Inactive', 'Suspended', 'Draft')),
-                    image_path TEXT DEFAULT 'placeholder.jpg',
-                    FOREIGN KEY(manager_id) REFERENCES tbl_managers(manager_id) ON DELETE CASCADE,
-                    UNIQUE(manager_id, sku)
-                )
-            """)
-            cursor.execute("""
-                INSERT INTO tbl_products_new (product_id, manager_id, sku, name, description, price_inr, stock_qty, packed_qty, show_price, status, image_path)
-                SELECT product_id, manager_id, sku, name, description, price_inr, stock_qty, packed_qty, show_price, status, image_path FROM tbl_products
-            """)
-            cursor.execute("DROP TABLE tbl_products")
-            cursor.execute("ALTER TABLE tbl_products_new RENAME TO tbl_products")
-            cursor.execute("PRAGMA foreign_keys=ON")
 
         db.commit()
 
