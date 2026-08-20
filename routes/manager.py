@@ -701,7 +701,7 @@ def orders():
     order_ids    = tuple(o['order_id'] for o in order_rows)  # tuple required by LibSQL
     placeholders = ', '.join(['?'] * len(order_ids))
     all_items = db.execute(f'''
-        SELECT oi.order_id, oi.quantity, p.name, p.packed_qty, p.stock_qty
+        SELECT oi.order_id, oi.product_id, oi.quantity, oi.price_at_time, p.name, p.packed_qty, p.stock_qty
         FROM tbl_order_items oi
         JOIN tbl_products p ON oi.product_id = p.product_id
         WHERE oi.order_id IN ({placeholders})
