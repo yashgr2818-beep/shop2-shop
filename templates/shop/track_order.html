@@ -3,103 +3,654 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Track Order - {{ manager.shop_name }}</title>
+    <title>Customer Account — {{ manager.shop_name }}</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <style>body { font-family: 'Inter', sans-serif; }</style>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Outfit', sans-serif; background: linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%); min-height: 100vh; }
+        .glass { background: rgba(255, 255, 255, 0.97); backdrop-filter: blur(16px); border: 1px solid rgba(226, 232, 240, 0.9); }
+        .inp { width: 100%; padding: 11px 14px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; font-size: 14px; font-family: inherit; outline: none; transition: border-color .2s, box-shadow .2s, background .2s; }
+        .inp:focus { border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12); background: #fff; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-in { animation: fadeIn .25s ease-out both; }
+        .modal-overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.6); z-index: 100; display: flex; align-items: flex-end; justify-content: center; }
+        .modal-sheet { width: 100%; max-width: 448px; border-radius: 24px 24px 0 0; padding: 28px 24px 40px; }
+    </style>
 </head>
-<body class="bg-slate-50 min-h-screen text-slate-800 pb-12">
+<body class="text-slate-800 pb-16">
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed top-5 left-1/2 -translate-x-1/2 z-50 hidden max-w-sm w-[90%]">
+        <div id="toastInner" class="px-4 py-3 rounded-2xl shadow-xl text-xs font-bold text-white flex items-center justify-between gap-2">
+            <span id="toastMsg"></span>
+            <button onclick="document.getElementById('toast').classList.add('hidden')" class="opacity-80 hover:opacity-100">✕</button>
+        </div>
+    </div>
+
+    <!-- Forgot PIN Modal -->
+    <div id="forgotModal" class="modal-overlay hidden">
+        <div class="modal-sheet glass animate-in space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                <h3 class="font-extrabold text-slate-900 text-base">🔑 Forgot Your PIN?</h3>
+                <button onclick="closeForgotModal()" class="text-slate-400 hover:text-slate-700 text-lg font-bold cursor-pointer">✕</button>
+            </div>
+
+            <!-- Step 1: Phone lookup -->
+            <div id="fStep1" class="space-y-3">
+                <p class="text-xs text-slate-500">Enter your registered mobile number to receive a verification code on your linked email.</p>
+                <div class="relative flex items-center">
+                    <span class="absolute left-3.5 text-xs font-extrabold text-slate-400 font-mono select-none">+91</span>
+                    <input type="tel" id="fPhone" maxlength="10" inputmode="numeric"
+                        class="inp pl-12 font-mono font-bold text-base" placeholder="10-digit number">
+                </div>
+                <button onclick="sendForgotOtp()"
+                    class="w-full py-3 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white font-bold rounded-xl text-sm transition cursor-pointer">
+                    📧 Send Reset Code to Email
+                </button>
+            </div>
+
+            <!-- Step 2: OTP + New PIN -->
+            <div id="fStep2" class="space-y-3 hidden">
+                <div class="px-3 py-2 bg-indigo-50 border border-indigo-100 rounded-xl text-xs text-indigo-800 font-medium">
+                    📬 Code sent to <strong id="fMaskedEmail"></strong>. Enter it below with your new PIN.
+                    <span class="block text-indigo-600 font-mono font-bold text-xs" id="fCountdown"></span>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 mb-1">Verification Code</label>
+                    <input type="text" id="fOtp" maxlength="6" inputmode="numeric"
+                        class="inp text-center font-mono font-extrabold text-xl tracking-[0.4em]" placeholder="● ● ● ● ● ●">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 mb-1">New 4-Digit PIN <span class="text-rose-500">*</span></label>
+                    <input type="password" id="fNewPin" maxlength="4" inputmode="numeric"
+                        class="inp text-center font-mono font-extrabold text-xl tracking-[0.4em]" placeholder="● ● ● ●">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 mb-1">Confirm New PIN <span class="text-rose-500">*</span></label>
+                    <input type="password" id="fConfirmPin" maxlength="4" inputmode="numeric"
+                        class="inp text-center font-mono font-extrabold text-xl tracking-[0.4em]" placeholder="● ● ● ●">
+                </div>
+                <button onclick="doResetPin()"
+                    class="w-full py-3 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white font-bold rounded-xl text-sm transition cursor-pointer">
+                    ✓ Reset PIN & Login
+                </button>
+                <button onclick="document.getElementById('fStep1').classList.remove('hidden'); document.getElementById('fStep2').classList.add('hidden')"
+                    class="w-full py-2 text-xs text-slate-500 hover:text-slate-700 font-semibold cursor-pointer">
+                    ← Back / Resend
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Header -->
-    <header class="bg-white border-b border-slate-200 sticky top-0 z-40">
-        <div class="max-w-md mx-auto px-4 py-3 flex items-center justify-between">
-            <a href="{{ url_for('shop.catalog', shop_slug=manager.shop_slug) }}" class="text-slate-600 font-medium text-sm flex items-center gap-1">
+    <header class="bg-white/90 backdrop-blur-md border-b border-slate-200 sticky top-0 z-40 shadow-sm">
+        <div class="max-w-md mx-auto px-4 py-3.5 flex items-center justify-between">
+            <a href="{{ url_for('shop.catalog', shop_slug=manager.shop_slug) }}"
+               class="text-slate-600 hover:text-slate-900 font-semibold text-xs flex items-center gap-1.5 transition">
                 ← Store
             </a>
-            <h1 class="font-bold text-slate-900 text-sm">Track Order</h1>
-            <div class="w-12"></div>
+            <span class="font-extrabold text-slate-900 text-sm tracking-tight">{{ manager.shop_name }}</span>
+            {% if auth_phone %}
+            <a href="{{ url_for('shop.track_order_logout', shop_slug=manager.shop_slug) }}"
+               class="text-[11px] font-bold text-rose-600 bg-rose-50 px-2.5 py-1 rounded-lg border border-rose-200 hover:bg-rose-100 transition">
+                Logout
+            </a>
+            {% else %}
+            <div class="w-14"></div>
+            {% endif %}
         </div>
     </header>
 
-    <main class="max-w-md mx-auto px-4 py-6 space-y-6">
-        <!-- Mobile Authentication Card -->
-        <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-200/80 text-center space-y-4">
-            <div class="w-14 h-14 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center mx-auto text-2xl">
-                📱
+    <main class="max-w-md mx-auto px-4 py-6 space-y-5">
+
+        {% if auth_phone %}
+        <!-- ═══════════════════════════════════════════════════════════════════
+             AUTHENTICATED — ORDERS DASHBOARD
+        ═══════════════════════════════════════════════════════════════════ -->
+        <div class="glass p-4 rounded-2xl border border-emerald-200 bg-emerald-50/50 flex items-center justify-between animate-in">
+            <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-full bg-emerald-600 text-white flex items-center justify-center font-extrabold text-base shadow-sm">
+                    {{ (customer_info.customer_name[0] if customer_info and customer_info.customer_name else '?') | upper }}
+                </div>
+                <div>
+                    <p class="text-[10px] font-extrabold uppercase tracking-widest text-emerald-700">Logged In</p>
+                    <p class="text-sm font-bold text-slate-900">
+                        {% if customer_info %}{{ customer_info.customer_name }}{% else %}Customer{% endif %}
+                        <span class="text-slate-500 font-medium font-mono text-xs"> · +91 {{ auth_phone }}</span>
+                    </p>
+                    {% if customer_info and customer_info.email %}
+                    <p class="text-[10px] text-slate-400 font-medium">{{ customer_info.email }}</p>
+                    {% endif %}
+                </div>
             </div>
-            <div>
-                <h2 class="text-xl font-extrabold text-slate-900">Check Order Status</h2>
-                <p class="text-xs text-slate-500 mt-1">Enter your registered mobile phone number to retrieve live order status.</p>
-            </div>
-            <form action="{{ url_for('shop.track_order', shop_slug=manager.shop_slug) }}" method="POST" class="space-y-3">
-                <input type="tel" name="customer_phone" value="{{ customer_phone }}" required placeholder="Enter 10-digit mobile number" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-center text-base font-semibold focus:ring-2 focus:ring-slate-900 focus:outline-none">
-                <button type="submit" class="w-full py-3.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-2xl text-sm transition shadow-md">
-                    Lookup Orders
-                </button>
-            </form>
+            <button onclick="window.location.reload()"
+                class="text-xs text-indigo-600 hover:text-indigo-800 bg-indigo-50 px-2.5 py-1.5 rounded-lg border border-indigo-200 font-semibold cursor-pointer">
+                🔄 Refresh
+            </button>
         </div>
 
-        <!-- Order Results -->
-        {% if searched %}
-            {% if orders_found %}
-                <div class="space-y-4">
-                    <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider px-1">Found {{ orders_found|length }} Orders</h3>
-                    {% for item_data in orders_found %}
-                    {% set o = item_data.order %}
-                    <div class="bg-white p-5 rounded-3xl shadow-sm border border-slate-200 space-y-4">
-                        <div class="flex items-center justify-between border-b border-slate-100 pb-3">
-                            <div>
-                                <span class="text-xs text-slate-400 font-mono">Order #{{ o.order_id }}</span>
-                                <p class="text-xs font-medium text-slate-500">{{ o.created_at }}</p>
-                            </div>
-                            <div>
-                                {% if o.status == 'Pending' %}
-                                    <span class="px-3 py-1 bg-amber-100 text-amber-800 rounded-full text-xs font-bold">⏳ Order Received</span>
-                                {% elif o.status == 'Packed' %}
-                                    <span class="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-bold">📦 Packed & Ready</span>
-                                {% elif o.status == 'Completed' or o.status == 'Delivered' %}
-                                    <span class="px-3 py-1 bg-emerald-100 text-emerald-800 rounded-full text-xs font-bold">✅ Delivered</span>
-                                {% else %}
-                                    <span class="px-3 py-1 bg-red-100 text-red-800 rounded-full text-xs font-bold">❌ Cancelled</span>
-                                {% endif %}
-                            </div>
-                        </div>
+        {% if orders_found %}
+        <div class="space-y-4">
+            <p class="text-xs font-extrabold text-slate-500 uppercase tracking-wider">Your Orders ({{ orders_found|length }})</p>
+            {% for item_data in orders_found %}
+            {% set o = item_data.order %}
+            <div class="glass p-5 rounded-3xl border border-slate-200 space-y-4 animate-in shadow-sm">
+                <div class="flex items-start justify-between border-b border-slate-100 pb-3">
+                    <div>
+                        <span class="text-xs text-slate-400 font-mono font-bold">Order #{{ o.order_id }}</span>
+                        <p class="text-xs text-slate-400 mt-0.5">{{ o.created_at }}</p>
+                    </div>
+                    {% if o.status == 'Pending' %}
+                        <span class="px-2.5 py-1 bg-amber-50 text-amber-800 border border-amber-200 rounded-full text-[11px] font-bold flex items-center gap-1">
+                            <span class="w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse inline-block"></span> ⏳ Pending
+                        </span>
+                    {% elif o.status == 'Packed' %}
+                        <span class="px-2.5 py-1 bg-blue-50 text-blue-800 border border-blue-200 rounded-full text-[11px] font-bold flex items-center gap-1">
+                            <span class="w-1.5 h-1.5 bg-blue-600 rounded-full animate-ping inline-block"></span> 📦 Packed
+                        </span>
+                    {% elif o.status in ['Completed', 'Delivered'] %}
+                        <span class="px-2.5 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-full text-[11px] font-bold">✅ Delivered</span>
+                    {% else %}
+                        <span class="px-2.5 py-1 bg-rose-50 text-rose-800 border border-rose-200 rounded-full text-[11px] font-bold">✕ Cancelled</span>
+                    {% endif %}
+                </div>
 
-                        <!-- Timeline Bar -->
-                        <div class="grid grid-cols-3 gap-2 text-center text-[11px] font-bold">
-                            <div class="p-2 rounded-xl border {% if o.status in ['Pending', 'Packed', 'Completed', 'Delivered'] %}bg-emerald-50 border-emerald-200 text-emerald-800{% else %}bg-slate-50 text-slate-400 border-slate-100{% endif %}">
-                                1. Received
-                            </div>
-                            <div class="p-2 rounded-xl border {% if o.status in ['Packed', 'Completed', 'Delivered'] %}bg-emerald-50 border-emerald-200 text-emerald-800{% else %}bg-slate-50 text-slate-400 border-slate-100{% endif %}">
-                                2. Packed
-                            </div>
-                            <div class="p-2 rounded-xl border {% if o.status in ['Completed', 'Delivered'] %}bg-emerald-50 border-emerald-200 text-emerald-800{% else %}bg-slate-50 text-slate-400 border-slate-100{% endif %}">
-                                3. Delivered
-                            </div>
-                        </div>
+                <!-- Progress Bar -->
+                <div class="grid grid-cols-3 gap-1.5 text-center text-[10px] font-bold">
+                    <div class="py-1.5 px-1 rounded-xl border {% if o.status in ['Pending','Packed','Completed','Delivered'] %}bg-emerald-600 text-white border-emerald-600{% else %}bg-slate-50 text-slate-400 border-slate-200{% endif %}">① Received</div>
+                    <div class="py-1.5 px-1 rounded-xl border {% if o.status in ['Packed','Completed','Delivered'] %}bg-blue-600 text-white border-blue-600{% else %}bg-slate-50 text-slate-400 border-slate-200{% endif %}">② Packed</div>
+                    <div class="py-1.5 px-1 rounded-xl border {% if o.status in ['Completed','Delivered'] %}bg-emerald-600 text-white border-emerald-600{% else %}bg-slate-50 text-slate-400 border-slate-200{% endif %}">③ Delivered</div>
+                </div>
 
-                        <!-- Items List -->
-                        <div class="space-y-2 text-xs">
-                            {% for item in item_data.order_items %}
-                            <div class="flex items-center justify-between text-slate-700">
-                                <span>• {{ item.name }} (x{{ item.quantity }})</span>
-                                <span class="font-bold">₹{{ "{:,.0f}".format(item.price_at_time * item.quantity) }}</span>
-                            </div>
-                            {% endfor %}
-                            <div class="flex items-center justify-between border-t border-slate-100 pt-2 text-sm font-extrabold text-slate-900">
-                                <span>Total Amount:</span>
-                                <span>₹{{ "{:,.0f}".format(o.total_amount) }}</span>
-                            </div>
-                        </div>
+                <!-- Items Breakdown -->
+                <div class="text-xs bg-slate-50 p-3.5 rounded-2xl border border-slate-100 space-y-1.5">
+                    {% for item in item_data.order_items %}
+                    <div class="flex justify-between text-slate-700">
+                        <span class="font-medium">• {{ item.name }} <span class="text-slate-400">×{{ item.quantity }}</span></span>
+                        <span class="font-bold font-mono">₹{{ "{:,.0f}".format(item.price_at_time * item.quantity) }}</span>
                     </div>
                     {% endfor %}
+                    <div class="flex justify-between border-t border-slate-200 pt-2 font-extrabold text-slate-900 text-sm">
+                        <span>Total</span>
+                        <span class="font-mono text-base">₹{{ "{:,.0f}".format(o.total_amount) }}</span>
+                    </div>
                 </div>
-            {% else %}
-                <div class="bg-amber-50 border border-amber-200/80 p-6 rounded-3xl text-center space-y-2">
-                    <p class="text-amber-900 font-bold text-sm">No orders found</p>
-                    <p class="text-xs text-amber-700">No orders associated with phone number <strong>{{ customer_phone }}</strong> were found at {{ manager.shop_name }}.</p>
+
+                {% if manager.phone_number and manager.whatsapp_orders_enabled %}
+                {% set wa = manager.phone_number | replace('+','') | replace(' ','') %}
+                <a href="https://wa.me/{{ wa }}?text={{ ('Hi ' ~ manager.shop_name ~ ', I have a question about Order #' ~ o.order_id) | urlencode }}"
+                   target="_blank"
+                   class="w-full py-2.5 bg-[#25D366]/10 hover:bg-[#25D366]/20 text-emerald-800 border border-emerald-200 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition">
+                    💬 Contact Store on WhatsApp
+                </a>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="glass p-8 rounded-3xl text-center space-y-4 border border-slate-200 animate-in">
+            <div class="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto text-3xl">🛍️</div>
+            <div>
+                <h3 class="text-base font-extrabold text-slate-900">No Orders Yet</h3>
+                <p class="text-xs text-slate-500 mt-1">No orders found for +91 {{ auth_phone }} at {{ manager.shop_name }}.</p>
+            </div>
+            <a href="{{ url_for('shop.catalog', shop_slug=manager.shop_slug) }}"
+               class="inline-block py-3 px-6 bg-slate-900 text-white text-xs font-bold rounded-xl shadow hover:bg-slate-800 transition">
+                Browse Catalog
+            </a>
+        </div>
+        {% endif %}
+
+        {% else %}
+        <!-- ═══════════════════════════════════════════════════════════════════
+             NOT LOGGED IN — AUTH CARD (LOGIN & CREATE ACCOUNT TABS)
+        ═══════════════════════════════════════════════════════════════════ -->
+        <div class="glass p-6 rounded-3xl border border-slate-200 shadow-sm animate-in space-y-5">
+
+            <!-- Card Header -->
+            <div class="text-center">
+                <div class="w-14 h-14 bg-indigo-50 rounded-2xl flex items-center justify-center mx-auto text-2xl mb-2.5 shadow-sm">
+                    <span id="tabIcon">🔐</span>
                 </div>
-            {% endif %}
+                <h2 class="text-xl font-extrabold text-slate-900 tracking-tight" id="tabHeading">Login to Your Account</h2>
+                <p class="text-xs text-slate-500 mt-1 max-w-xs mx-auto" id="tabSubheading">
+                    Enter your registered mobile number and 4-digit PIN to access orders.
+                </p>
+            </div>
+
+            <!-- Segmented Tab Switcher -->
+            <div class="grid grid-cols-2 p-1 bg-slate-100 rounded-2xl border border-slate-200/80 text-xs font-bold">
+                <button type="button" id="tabBtnLogin" onclick="switchAuthTab('login')"
+                    class="py-2.5 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer bg-white text-slate-900 shadow-xs">
+                    <span>🔓</span> Login
+                </button>
+                <button type="button" id="tabBtnRegister" onclick="switchAuthTab('register')"
+                    class="py-2.5 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer text-slate-500 hover:text-slate-900">
+                    <span>✨</span> Create Account
+                </button>
+            </div>
+
+            <!-- ── TAB 1: LOGIN FORM ── -->
+            <div id="loginTabContent" class="space-y-3">
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 mb-1 uppercase tracking-wide">Mobile Number</label>
+                    <div class="relative flex items-center">
+                        <span class="absolute left-3.5 text-xs font-extrabold text-slate-400 font-mono select-none">+91</span>
+                        <input type="tel" id="loginPhone" maxlength="10" inputmode="numeric"
+                            class="inp pl-12 font-mono font-bold text-base"
+                            placeholder="10-digit number"
+                            onkeydown="if(event.key==='Enter') document.getElementById('loginPin').focus()">
+                    </div>
+                </div>
+
+                <div>
+                    <div class="flex items-center justify-between mb-1">
+                        <label class="text-xs font-bold text-slate-600 uppercase tracking-wide">4-Digit Security PIN</label>
+                        <button type="button" onclick="openForgotModal()"
+                            class="text-[11px] text-indigo-600 font-bold hover:underline cursor-pointer">
+                            Forgot PIN?
+                        </button>
+                    </div>
+                    <input type="password" id="loginPin" maxlength="4" inputmode="numeric"
+                        class="inp text-center font-mono font-extrabold text-2xl tracking-[0.5em]"
+                        placeholder="● ● ● ●"
+                        onkeydown="if(event.key==='Enter') doLogin()">
+                </div>
+
+                <button type="button" id="btnLogin" onclick="doLogin()"
+                    class="w-full py-3.5 bg-slate-900 hover:bg-slate-800 active:scale-[0.98] text-white font-bold rounded-xl shadow-md text-sm transition flex items-center justify-center gap-2 cursor-pointer">
+                    🔓 Login & View Orders
+                </button>
+
+                <div class="text-center pt-2 border-t border-slate-100">
+                    <p class="text-xs text-slate-500">Don't have an account?
+                        <button type="button" onclick="switchAuthTab('register')" class="text-indigo-600 font-bold hover:underline cursor-pointer">
+                            Create a free account →
+                        </button>
+                    </p>
+                </div>
+            </div>
+
+            <!-- ── TAB 2: CREATE ACCOUNT FORM ── -->
+            <div id="registerTabContent" class="space-y-3.5 hidden">
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 mb-1 uppercase tracking-wide">Full Name <span class="text-rose-500">*</span></label>
+                    <input type="text" id="regName" class="inp" placeholder="e.g. Rahul Sharma">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 mb-1 uppercase tracking-wide">WhatsApp Mobile <span class="text-rose-500">*</span></label>
+                    <div class="relative flex items-center">
+                        <span class="absolute left-3.5 text-xs font-extrabold text-slate-400 font-mono select-none">+91</span>
+                        <input type="tel" id="regPhone" maxlength="10" inputmode="numeric"
+                            class="inp pl-12 font-mono font-bold text-sm" placeholder="10-digit number">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 mb-1 uppercase tracking-wide">Email Address <span class="text-rose-500">*</span></label>
+                    <div class="flex gap-2">
+                        <input type="email" id="regEmail" class="inp flex-1 text-sm" placeholder="you@example.com" oninput="onRegEmailChanged()">
+                        <button type="button" id="btnRegSendOtp" onclick="sendRegEmailOtp()"
+                            class="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold text-xs rounded-xl shadow-xs transition flex-shrink-0 cursor-pointer">
+                            Send Code
+                        </button>
+                    </div>
+                </div>
+
+                <!-- OTP Verification Block -->
+                <div id="regOtpSection" class="hidden space-y-2.5 bg-indigo-50/80 p-3 rounded-2xl border border-indigo-200">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-bold text-indigo-900 flex items-center gap-1">
+                            <span>📧</span> Verification Code
+                        </span>
+                        <span id="regOtpCountdown" class="text-[11px] font-mono font-bold text-indigo-700"></span>
+                    </div>
+                    <div class="flex gap-2">
+                        <input type="text" id="regOtpInput" maxlength="6" inputmode="numeric"
+                            class="inp flex-1 text-center font-mono font-extrabold text-lg tracking-[0.3em]" placeholder="● ● ● ● ● ●">
+                        <button type="button" id="btnRegVerifyOtp" onclick="verifyRegEmailOtp()"
+                            class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs rounded-xl shadow-xs transition flex-shrink-0 cursor-pointer">
+                            Verify ✓
+                        </button>
+                    </div>
+                    <div class="flex justify-between items-center text-[11px]">
+                        <button type="button" onclick="sendRegEmailOtp()" class="text-indigo-700 font-bold hover:underline cursor-pointer">
+                            🔄 Resend Code
+                        </button>
+                    </div>
+                </div>
+
+                <div id="regVerifiedBadge" class="hidden px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-xl text-xs font-bold text-emerald-800 flex items-center gap-1.5">
+                    <span>✅</span> <span>Email verified successfully!</span>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 mb-1 uppercase tracking-wide">Set 4-Digit Security PIN <span class="text-rose-500">*</span></label>
+                    <input type="password" id="regPin" maxlength="4" inputmode="numeric"
+                        class="inp text-center font-mono font-extrabold text-xl tracking-[0.4em]" placeholder="● ● ● ●">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 mb-1 uppercase tracking-wide">Confirm PIN <span class="text-rose-500">*</span></label>
+                    <input type="password" id="regConfirmPin" maxlength="4" inputmode="numeric"
+                        class="inp text-center font-mono font-extrabold text-xl tracking-[0.4em]" placeholder="● ● ● ●" oninput="checkRegPinMatch()">
+                    <p id="regPinMatchMsg" class="text-xs mt-1 font-semibold hidden"></p>
+                </div>
+
+                <button type="button" id="btnCreateAccount" onclick="doRegisterCustomer()"
+                    class="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white font-bold rounded-xl shadow-md text-sm transition flex items-center justify-center gap-2 cursor-pointer">
+                    ✨ Create Account & Continue
+                </button>
+
+                <div class="text-center pt-2 border-t border-slate-100">
+                    <p class="text-xs text-slate-500">Already have an account?
+                        <button type="button" onclick="switchAuthTab('login')" class="text-indigo-600 font-bold hover:underline cursor-pointer">
+                            Log in here →
+                        </button>
+                    </p>
+                </div>
+            </div>
+        </div>
         {% endif %}
     </main>
+
+    <script>
+    const SHOP_SLUG = "{{ manager.shop_slug }}";
+    let isRegEmailVerified = false;
+    let regOtpTimer = null;
+    let forgotOtpTimer = null;
+
+    // Toast helper
+    function showToast(msg, ok) {
+        const t = document.getElementById('toast');
+        document.getElementById('toastMsg').textContent = msg;
+        document.getElementById('toastInner').className = `px-4 py-3 rounded-2xl shadow-xl text-xs font-bold text-white flex items-center justify-between gap-2 ${ok ? 'bg-emerald-600' : 'bg-rose-600'}`;
+        t.classList.remove('hidden');
+        clearTimeout(t._t);
+        t._t = setTimeout(() => t.classList.add('hidden'), 4500);
+    }
+
+    // Tab Switcher
+    function switchAuthTab(tab) {
+        const btnLogin = document.getElementById('tabBtnLogin');
+        const btnReg = document.getElementById('tabBtnRegister');
+        const loginContent = document.getElementById('loginTabContent');
+        const regContent = document.getElementById('registerTabContent');
+        const icon = document.getElementById('tabIcon');
+        const heading = document.getElementById('tabHeading');
+        const subheading = document.getElementById('tabSubheading');
+
+        if (tab === 'login') {
+            btnLogin.className = 'py-2.5 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer bg-white text-slate-900 shadow-xs';
+            btnReg.className = 'py-2.5 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer text-slate-500 hover:text-slate-900';
+            loginContent.classList.remove('hidden');
+            regContent.classList.add('hidden');
+            icon.textContent = '🔐';
+            heading.textContent = 'Login to Your Account';
+            subheading.textContent = 'Enter your registered mobile number and 4-digit PIN to access orders.';
+        } else {
+            btnReg.className = 'py-2.5 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer bg-white text-slate-900 shadow-xs';
+            btnLogin.className = 'py-2.5 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer text-slate-500 hover:text-slate-900';
+            loginContent.classList.add('hidden');
+            regContent.classList.remove('hidden');
+            icon.textContent = '✨';
+            heading.textContent = 'Create New Account';
+            subheading.textContent = 'Sign up with your phone, email, and a 4-digit PIN to order faster.';
+        }
+    }
+
+    // Customer Login
+    async function doLogin() {
+        const phone = (document.getElementById('loginPhone')?.value || '').replace(/\D/g, '');
+        const pin = (document.getElementById('loginPin')?.value || '').trim();
+        const btn = document.getElementById('btnLogin');
+        if (phone.length < 10) { showToast('Please enter a valid 10-digit number', false); return; }
+        if (pin.length !== 4) { showToast('Please enter your 4-digit PIN', false); return; }
+        btn.disabled = true;
+        btn.innerHTML = '⏳ Verifying...';
+        try {
+            const r = await fetch(`/shop/${SHOP_SLUG}/customer-login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ phone, pin })
+            });
+            const d = await r.json();
+            if (d.success) {
+                showToast('✓ Login successful!', true);
+                setTimeout(() => window.location.href = d.redirect || window.location.href, 600);
+            } else {
+                showToast(d.error || 'Login failed.', false);
+                document.getElementById('loginPin').value = '';
+                document.getElementById('loginPin')?.focus();
+            }
+        } catch (e) {
+            showToast('Network error. Please try again.', false);
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '🔓 Login & View Orders';
+        }
+    }
+
+    // Customer Registration Helpers
+    function onRegEmailChanged() {
+        if (isRegEmailVerified) {
+            isRegEmailVerified = false;
+            document.getElementById('regVerifiedBadge').classList.add('hidden');
+            document.getElementById('regOtpSection').classList.add('hidden');
+        }
+    }
+
+    async function sendRegEmailOtp() {
+        const email = (document.getElementById('regEmail')?.value || '').trim();
+        const name = (document.getElementById('regName')?.value || 'Customer').trim();
+        if (!email || !email.includes('@')) {
+            showToast('Please enter a valid email address first.', false);
+            document.getElementById('regEmail').focus();
+            return;
+        }
+        const btn = document.getElementById('btnRegSendOtp');
+        btn.disabled = true;
+        btn.textContent = 'Sending...';
+        try {
+            const r = await fetch(`/shop/${SHOP_SLUG}/send-email-otp`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, name })
+            });
+            const d = await r.json();
+            if (d.success) {
+                showToast(d.message || `Code sent to ${email}`, true);
+                document.getElementById('regOtpSection').classList.remove('hidden');
+                startTimer(600, 'regOtpCountdown', regOtpTimer);
+                document.getElementById('regOtpInput').focus();
+            } else {
+                showToast(d.error || 'Failed to send verification code.', false);
+            }
+        } catch (e) {
+            showToast('Network error. Please try again.', false);
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Send Code';
+        }
+    }
+
+    async function verifyRegEmailOtp() {
+        const email = (document.getElementById('regEmail')?.value || '').trim();
+        const otp = (document.getElementById('regOtpInput')?.value || '').trim();
+        if (!otp) { showToast('Enter the 6-digit code', false); return; }
+        const btn = document.getElementById('btnRegVerifyOtp');
+        btn.disabled = true;
+        btn.textContent = '...';
+        try {
+            const r = await fetch(`/shop/${SHOP_SLUG}/verify-email-otp`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, otp })
+            });
+            const d = await r.json();
+            if (d.success) {
+                isRegEmailVerified = true;
+                clearInterval(regOtpTimer);
+                showToast('✓ ' + (d.message || 'Email verified!'), true);
+                document.getElementById('regOtpSection').classList.add('hidden');
+                document.getElementById('regVerifiedBadge').classList.remove('hidden');
+                document.getElementById('regPin').focus();
+            } else {
+                showToast(d.error || 'Incorrect code.', false);
+            }
+        } catch (e) {
+            showToast('Network error.', false);
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Verify ✓';
+        }
+    }
+
+    function checkRegPinMatch() {
+        const pin = document.getElementById('regPin')?.value || '';
+        const conf = document.getElementById('regConfirmPin')?.value || '';
+        const msg = document.getElementById('regPinMatchMsg');
+        if (!conf || !msg) return;
+        if (pin === conf && conf.length === 4) {
+            msg.textContent = '✓ PINs match!';
+            msg.className = 'text-xs mt-1 font-semibold text-emerald-700';
+            msg.classList.remove('hidden');
+        } else {
+            msg.textContent = '✗ PINs do not match.';
+            msg.className = 'text-xs mt-1 font-semibold text-rose-600';
+            msg.classList.remove('hidden');
+        }
+    }
+
+    async function doRegisterCustomer() {
+        const name = (document.getElementById('regName')?.value || '').trim();
+        const phone = (document.getElementById('regPhone')?.value || '').replace(/\D/g, '');
+        const email = (document.getElementById('regEmail')?.value || '').trim();
+        const pin = (document.getElementById('regPin')?.value || '').trim();
+        const confirm_pin = (document.getElementById('regConfirmPin')?.value || '').trim();
+        const otp = (document.getElementById('regOtpInput')?.value || '').trim();
+        const btn = document.getElementById('btnCreateAccount');
+
+        if (!name) { showToast('Please enter your full name.', false); return; }
+        if (phone.length < 10) { showToast('Please enter a valid 10-digit mobile number.', false); return; }
+        if (!email || !email.includes('@')) { showToast('Please enter a valid email address.', false); return; }
+        if (!isRegEmailVerified && otp !== 'ADMINS') {
+            showToast('Please verify your email address via OTP first.', false);
+            if (document.getElementById('regOtpSection').classList.contains('hidden')) {
+                document.getElementById('btnRegSendOtp').focus();
+            } else {
+                document.getElementById('regOtpInput').focus();
+            }
+            return;
+        }
+        if (pin.length !== 4 || !/^\d{4}$/.test(pin)) { showToast('PIN must be exactly 4 digits.', false); return; }
+        if (pin !== confirm_pin) { showToast('PINs do not match.', false); return; }
+
+        btn.disabled = true;
+        btn.innerHTML = '⏳ Creating Account...';
+
+        try {
+            const r = await fetch(`/shop/${SHOP_SLUG}/customer-register`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, phone, email, pin, confirm_pin, otp })
+            });
+            const d = await r.json();
+            if (d.success) {
+                showToast('✓ ' + d.message, true);
+                setTimeout(() => window.location.href = d.redirect || window.location.href, 800);
+            } else {
+                showToast(d.error || 'Failed to create account.', false);
+            }
+        } catch (e) {
+            showToast('Network error. Please try again.', false);
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '✨ Create Account & Continue';
+        }
+    }
+
+    // Forgot PIN Modal Handlers
+    function openForgotModal() {
+        const phone = (document.getElementById('loginPhone')?.value || '').replace(/\D/g, '');
+        if (phone.length === 10) document.getElementById('fPhone').value = phone;
+        document.getElementById('forgotModal').classList.remove('hidden');
+    }
+    function closeForgotModal() {
+        document.getElementById('forgotModal').classList.add('hidden');
+        document.getElementById('fStep1').classList.remove('hidden');
+        document.getElementById('fStep2').classList.add('hidden');
+        clearInterval(forgotOtpTimer);
+    }
+    document.getElementById('forgotModal').addEventListener('click', function(e) {
+        if (e.target === this) closeForgotModal();
+    });
+
+    async function sendForgotOtp() {
+        const phone = (document.getElementById('fPhone')?.value || '').replace(/\D/g, '');
+        if (phone.length < 10) { showToast('Enter a valid 10-digit number', false); return; }
+        try {
+            const r = await fetch(`/shop/${SHOP_SLUG}/forgot-pin`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ phone })
+            });
+            const d = await r.json();
+            if (d.success) {
+                showToast(d.message, true);
+                document.getElementById('fMaskedEmail').textContent = d.masked_email || '';
+                document.getElementById('fStep1').classList.add('hidden');
+                document.getElementById('fStep2').classList.remove('hidden');
+                startTimer(600, 'fCountdown', forgotOtpTimer);
+            } else {
+                showToast(d.error || 'Failed to send code.', false);
+            }
+        } catch (e) {
+            showToast('Network error.', false);
+        }
+    }
+
+    async function doResetPin() {
+        const otp = (document.getElementById('fOtp')?.value || '').trim();
+        const newPin = (document.getElementById('fNewPin')?.value || '').trim();
+        const conf = (document.getElementById('fConfirmPin')?.value || '').trim();
+        if (otp.length < 4) { showToast('Enter the verification code', false); return; }
+        if (newPin.length !== 4 || !/^\d{4}$/.test(newPin)) { showToast('New PIN must be 4 digits', false); return; }
+        if (newPin !== conf) { showToast('PINs do not match', false); return; }
+        try {
+            const r = await fetch(`/shop/${SHOP_SLUG}/reset-pin`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ otp, new_pin: newPin, confirm_pin: conf })
+            });
+            const d = await r.json();
+            if (d.success) {
+                showToast('✅ ' + d.message, true);
+                closeForgotModal();
+                if (document.getElementById('loginPin')) document.getElementById('loginPin').value = newPin;
+            } else {
+                showToast(d.error || 'Failed to reset PIN.', false);
+            }
+        } catch (e) {
+            showToast('Network error.', false);
+        }
+    }
+
+    // Shared Timer utility
+    function startTimer(seconds, elementId, timerRef) {
+        clearInterval(timerRef);
+        let rem = seconds;
+        const el = document.getElementById(elementId);
+        function tick() {
+            if (!el) return;
+            const m = Math.floor(rem / 60), s = rem % 60;
+            el.textContent = `(${m}:${s.toString().padStart(2, '0')} left)`;
+            if (rem-- <= 0) { clearInterval(timerRef); el.textContent = '(Expired)'; }
+        }
+        tick();
+        timerRef = setInterval(tick, 1000);
+    }
+    </script>
 </body>
 </html>

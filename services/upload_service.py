@@ -190,10 +190,12 @@ def process_csv_upload(file_stream, manager_id):
                 (manager_id, sku, name, description, price_inr, stock_qty, status)
             )
             count += 1
-            db.commit()
         except Exception as e:
             print(f"Error inserting product '{name}' ({sku}): {e}")
-                
+
+    if count > 0:
+        db.commit()
+
     return count
 
 def process_image_upload(file, manager_id, image_folder):

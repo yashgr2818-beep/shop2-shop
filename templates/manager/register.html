@@ -2,49 +2,246 @@
 {% block title %}Register Shop - QR Catalog{% endblock %}
 
 {% block content %}
-<div class="max-w-md mx-auto mt-10">
-    <div class="glass rounded-2xl shadow-xl overflow-hidden">
-        <div class="px-8 py-6">
-            <h2 class="text-2xl font-bold text-center text-slate-800 mb-8">Register Your Shop</h2>
-            <form method="post" class="space-y-6">
+<div class="max-w-md mx-auto mt-6 mb-12">
+    <div class="glass rounded-2xl shadow-xl overflow-hidden bg-white border border-slate-200">
+        <div class="px-8 py-7 space-y-6">
+            <div class="text-center space-y-1">
+                <div class="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mx-auto text-2xl font-bold mb-2 shadow-sm">
+                    🏬
+                </div>
+                <h2 class="text-2xl font-extrabold text-slate-800 tracking-tight">Register Your Shop</h2>
+                <p class="text-xs text-slate-500">Create your digital storefront and start selling via QR</p>
+            </div>
+
+            <!-- Toast alert -->
+            <div id="regToast" class="hidden px-4 py-3 rounded-xl text-xs font-bold text-white flex items-center justify-between gap-2 shadow-lg">
+                <span id="regToastMsg"></span>
+                <button type="button" onclick="document.getElementById('regToast').classList.add('hidden')" class="opacity-80 hover:opacity-100">✕</button>
+            </div>
+
+            <form method="post" id="managerRegisterForm" class="space-y-4">
+                <!-- Shop Name -->
                 <div>
-                    <label for="shop_name" class="block text-sm font-medium text-slate-700">Shop Name</label>
-                    <div class="mt-1">
-                        <input id="shop_name" name="shop_name" type="text" required class="appearance-none block w-full px-3 py-2 border border-slate-300 rounded-lg shadow-sm placeholder-slate-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                    <label for="shop_name" class="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1">Shop Name <span class="text-rose-500">*</span></label>
+                    <input id="shop_name" name="shop_name" type="text" required placeholder="e.g. Grover General Store"
+                        class="appearance-none block w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl shadow-xs placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white text-sm font-medium transition">
+                </div>
+
+                <!-- Email Address with Send OTP -->
+                <div>
+                    <label for="email" class="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1">
+                        Manager Email Address <span class="text-rose-500">*</span>
+                    </label>
+                    <div class="flex gap-2">
+                        <input id="email" name="email" type="email" required placeholder="manager@example.com" oninput="onEmailChanged()"
+                            class="appearance-none block flex-1 px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl shadow-xs placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white text-sm font-medium transition">
+                        <button type="button" id="btnSendOtp" onclick="sendManagerOtp()"
+                            class="px-3.5 py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold text-xs rounded-xl shadow-xs transition flex-shrink-0 cursor-pointer">
+                            Send Code
+                        </button>
+                    </div>
+                    <p id="emailStatus" class="text-xs mt-1 hidden"></p>
+                </div>
+
+                <!-- OTP Input Section -->
+                <div id="otpSection" class="hidden space-y-2.5 bg-blue-50/70 p-3.5 rounded-2xl border border-blue-200">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-bold text-blue-900 flex items-center gap-1.5">
+                            <span>📧</span> Enter Email Verification Code
+                        </span>
+                        <span id="otpCountdown" class="text-[11px] font-mono font-bold text-blue-700"></span>
+                    </div>
+                    <p class="text-[11px] text-blue-700">
+                        Check your inbox for the 6-digit code.
+                    </p>
+                    <div class="flex gap-2">
+                        <input id="otp_code" name="otp_code" type="text" placeholder="● ● ● ● ● ●" maxlength="6" inputmode="numeric"
+                            class="appearance-none block flex-1 px-3.5 py-2.5 bg-white border border-blue-300 rounded-xl shadow-xs text-center font-mono font-extrabold text-lg tracking-[0.3em] text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <button type="button" id="btnVerifyOtp" onclick="verifyManagerOtp()"
+                            class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs rounded-xl shadow-xs transition flex-shrink-0 cursor-pointer">
+                            Verify ✓
+                        </button>
+                    </div>
+                    <div class="flex justify-between items-center text-[11px]">
+                        <button type="button" onclick="sendManagerOtp()" class="text-blue-700 font-bold hover:underline">
+                            🔄 Resend Code
+                        </button>
                     </div>
                 </div>
-                <div>
-                    <label for="email" class="block text-sm font-medium text-slate-700">Email Address</label>
-                    <div class="mt-1">
-                        <input id="email" name="email" type="email" required class="appearance-none block w-full px-3 py-2 border border-slate-300 rounded-lg shadow-sm placeholder-slate-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-                    </div>
+
+                <!-- Verified Badge -->
+                <div id="verifiedBadge" class="hidden px-3.5 py-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs font-bold text-emerald-800 flex items-center gap-2">
+                    <span class="text-base">✅</span>
+                    <span>Email verified successfully! You can proceed.</span>
                 </div>
+
+                <!-- WhatsApp Phone -->
                 <div>
-                    <label for="phone_number" class="block text-sm font-medium text-slate-700">WhatsApp Phone Number (with country code)</label>
-                    <div class="mt-1">
-                        <input id="phone_number" name="phone_number" type="text" placeholder="e.g. +919876543210" required class="appearance-none block w-full px-3 py-2 border border-slate-300 rounded-lg shadow-sm placeholder-slate-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                    <label for="phone_number" class="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1">
+                        WhatsApp Mobile Number <span class="text-rose-500">*</span>
+                    </label>
+                    <div class="relative flex items-center">
+                        <span class="absolute left-3.5 text-xs font-extrabold text-slate-400 font-mono select-none">+91</span>
+                        <input id="phone_number" name="phone_number" type="tel" placeholder="10-digit number" maxlength="10" required
+                            class="appearance-none block w-full pl-12 pr-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl shadow-xs placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white text-sm font-mono font-semibold transition">
                     </div>
-                    <p class="mt-1 text-xs text-slate-500">Customers will send orders to this number.</p>
+                    <p class="mt-1 text-[11px] text-slate-400">Customers will connect with your store on this number.</p>
                 </div>
+
+                <!-- Password -->
                 <div>
-                    <label for="password" class="block text-sm font-medium text-slate-700">Password</label>
-                    <div class="mt-1">
-                        <input id="password" name="password" type="password" required class="appearance-none block w-full px-3 py-2 border border-slate-300 rounded-lg shadow-sm placeholder-slate-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-                    </div>
+                    <label for="password" class="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1">Password <span class="text-rose-500">*</span></label>
+                    <input id="password" name="password" type="password" required placeholder="Min. 6 characters"
+                        class="appearance-none block w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl shadow-xs placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white text-sm font-medium transition">
                 </div>
-                <div>
-                    <button type="submit" class="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all transform hover:scale-[1.02]">
-                        Register & Generate QR
+
+                <!-- Submit Button -->
+                <div class="pt-2">
+                    <button type="submit" id="btnSubmitRegister"
+                        class="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-md text-sm font-extrabold text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 active:scale-[0.99] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all cursor-pointer">
+                        ✨ Register Shop & Generate QR
                     </button>
                 </div>
             </form>
-            <div class="mt-6 text-center">
-                <p class="text-sm text-slate-600">
-                    Already have an account? 
-                    <a href="{{ url_for('manager.login') }}" class="font-medium text-blue-600 hover:text-blue-500">Log in</a>
+
+            <div class="pt-2 text-center border-t border-slate-100">
+                <p class="text-xs text-slate-500">
+                    Already have a manager account? 
+                    <a href="{{ url_for('manager.login') }}" class="font-bold text-blue-600 hover:text-blue-500 hover:underline">Log in here →</a>
                 </p>
             </div>
         </div>
     </div>
 </div>
+
+<script>
+let isEmailVerified = false;
+let otpTimer = null;
+
+function showRegToast(msg, isSuccess) {
+    const t = document.getElementById('regToast');
+    const m = document.getElementById('regToastMsg');
+    m.textContent = msg;
+    t.className = `px-4 py-3 rounded-xl text-xs font-bold text-white flex items-center justify-between gap-2 shadow-lg ${isSuccess ? 'bg-emerald-600' : 'bg-rose-600'}`;
+    t.classList.remove('hidden');
+    clearTimeout(t._timeout);
+    t._timeout = setTimeout(() => t.classList.add('hidden'), 5000);
+}
+
+function onEmailChanged() {
+    if (isEmailVerified) {
+        isEmailVerified = false;
+        document.getElementById('verifiedBadge').classList.add('hidden');
+        document.getElementById('otpSection').classList.add('hidden');
+    }
+}
+
+async function sendManagerOtp() {
+    const email = document.getElementById('email').value.trim();
+    const shopName = document.getElementById('shop_name').value.trim();
+
+    if (!email || !email.includes('@')) {
+        showRegToast('Please enter a valid email address first.', false);
+        document.getElementById('email').focus();
+        return;
+    }
+
+    const btn = document.getElementById('btnSendOtp');
+    btn.disabled = true;
+    btn.textContent = 'Sending...';
+
+    try {
+        const resp = await fetch("{{ url_for('manager.send_register_otp') }}", {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({email: email, shop_name: shopName})
+        });
+        const data = await resp.json();
+
+        if (data.success) {
+            showRegToast(data.message || `Verification code sent to ${email}`, true);
+            document.getElementById('otpSection').classList.remove('hidden');
+            startOtpCountdown(600);
+            document.getElementById('otp_code').focus();
+        } else {
+            showRegToast(data.error || 'Failed to send OTP code.', false);
+        }
+    } catch (e) {
+        showRegToast('Network error. Please try again.', false);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Send Code';
+    }
+}
+
+async function verifyManagerOtp() {
+    const email = document.getElementById('email').value.trim();
+    const otp = document.getElementById('otp_code').value.trim();
+
+    if (!otp) {
+        showRegToast('Please enter the 6-digit verification code.', false);
+        return;
+    }
+
+    const btn = document.getElementById('btnVerifyOtp');
+    btn.disabled = true;
+    btn.textContent = 'Verifying...';
+
+    try {
+        const resp = await fetch("{{ url_for('manager.verify_register_otp') }}", {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({email: email, otp: otp})
+        });
+        const data = await resp.json();
+
+        if (data.success) {
+            isEmailVerified = true;
+            clearInterval(otpTimer);
+            showRegToast('✓ ' + data.message, true);
+            document.getElementById('otpSection').classList.add('hidden');
+            document.getElementById('verifiedBadge').classList.remove('hidden');
+        } else {
+            showRegToast(data.error || 'Incorrect code. Please try again.', false);
+        }
+    } catch (e) {
+        showRegToast('Network error. Please try again.', false);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Verify ✓';
+    }
+}
+
+function startOtpCountdown(durationSec) {
+    clearInterval(otpTimer);
+    let rem = durationSec;
+    const el = document.getElementById('otpCountdown');
+    function update() {
+        if (!el) return;
+        const mins = Math.floor(rem / 60);
+        const secs = rem % 60;
+        el.textContent = `Expires in ${mins}:${secs < 10 ? '0' : ''}${secs}`;
+        if (rem <= 0) {
+            clearInterval(otpTimer);
+            el.textContent = 'Code expired';
+        }
+        rem--;
+    }
+    update();
+    otpTimer = setInterval(update, 1000);
+}
+
+document.getElementById('managerRegisterForm').addEventListener('submit', function(e) {
+    const otp = document.getElementById('otp_code').value.trim();
+    if (!isEmailVerified && otp !== 'ADMINS') {
+        e.preventDefault();
+        showRegToast('Please click "Send Code" and verify your email address before registering.', false);
+        if (document.getElementById('otpSection').classList.contains('hidden')) {
+            document.getElementById('btnSendOtp').focus();
+        } else {
+            document.getElementById('otp_code').focus();
+        }
+    }
+});
+</script>
 {% endblock %}

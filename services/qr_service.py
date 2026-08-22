@@ -2,6 +2,7 @@ import qrcode
 import os
 import socket
 import re
+import io
 import functools
 
 _cached_local_ip = None
@@ -121,7 +122,6 @@ def parse_user_agent(ua_string):
         
     return f"{device} • {browser}"
 
-import io
 
 def get_shop_base_url(request=None, for_qr_scan=False):
     """Determines canonical shop base URL dynamically for the active environment (Render 1, Render 2, Localhost, LAN, or Custom Domain)."""

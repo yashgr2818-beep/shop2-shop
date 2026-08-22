@@ -76,12 +76,27 @@ CREATE TABLE IF NOT EXISTS tbl_cart_items (
     FOREIGN KEY(product_id) REFERENCES tbl_products(product_id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS tbl_customers (
+    customer_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    manager_id INTEGER NOT NULL,
+    customer_name TEXT NOT NULL,
+    phone_number TEXT NOT NULL,
+    email TEXT,
+    pin_hash TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    last_login DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(manager_id) REFERENCES tbl_managers(manager_id) ON DELETE CASCADE,
+    UNIQUE(manager_id, phone_number)
+);
+
 CREATE TABLE IF NOT EXISTS tbl_orders (
     order_id INTEGER PRIMARY KEY AUTOINCREMENT,
     order_uuid TEXT UNIQUE,
     manager_id INTEGER,
     customer_name TEXT,
     customer_phone TEXT,
+    customer_email TEXT,
+    customer_pin TEXT,
     total_amount REAL,
     status TEXT DEFAULT 'Pending',
     payment_status TEXT DEFAULT 'Unpaid',
@@ -119,3 +134,5 @@ CREATE INDEX IF NOT EXISTS idx_visitor_token           ON tbl_visitor_sessions(s
 CREATE INDEX IF NOT EXISTS idx_cart_session            ON tbl_cart_items(session_id);
 CREATE INDEX IF NOT EXISTS idx_product_views_product   ON tbl_product_views(product_id);
 CREATE INDEX IF NOT EXISTS idx_staff_manager           ON tbl_staff_accounts(manager_id);
+CREATE INDEX IF NOT EXISTS idx_customers_phone         ON tbl_customers(manager_id, phone_number);
+

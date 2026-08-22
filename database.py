@@ -1,3 +1,4 @@
+
 import os
 import sqlite3
 from flask import g, current_app
@@ -318,6 +319,28 @@ def init_db(app):
             cursor.execute("ALTER TABLE tbl_managers ADD COLUMN secure_url_mode INTEGER DEFAULT 0")
         if 'qr_image_url' not in cols_mgr:
             cursor.execute("ALTER TABLE tbl_managers ADD COLUMN qr_image_url TEXT")
+
+        # Create tbl_customers table if not exists
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS tbl_customers (
+                customer_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                manager_id INTEGER NOT NULL,
+                customer_name TEXT NOT NULL,
+                phone_number TEXT NOT NULL,
+                email TEXT,
+                pin_hash TEXT NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                last_login DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(manager_id) REFERENCES tbl_managers(manager_id) ON DELETE CASCADE,
+                UNIQUE(manager_id, phone_number)
+            )
+        ''')
+
+        cols_orders = [col[1] for col in cursor.execute("PRAGMA table_info(tbl_orders)").fetchall()]
+        if 'customer_email' not in cols_orders:
+            cursor.execute("ALTER TABLE tbl_orders ADD COLUMN customer_email TEXT")
+        if 'customer_pin' not in cols_orders:
+            cursor.execute("ALTER TABLE tbl_orders ADD COLUMN customer_pin TEXT")
 
         db.commit()
 

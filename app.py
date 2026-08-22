@@ -1,7 +1,9 @@
 import os
+import time
 from dotenv import load_dotenv
 from flask import Flask, render_template, redirect, url_for, request
-from database import init_db
+from database import init_db, get_db, close_connection
+from services.qr_service import get_client_ip
 
 # Load environment variables from .env file
 load_dotenv()
@@ -31,8 +33,7 @@ def create_app(test_config=None):
     os.makedirs(app.config['IMAGE_FOLDER'], exist_ok=True)
     os.makedirs(app.config['QR_FOLDER'], exist_ok=True)
 
-    import database
-    app.teardown_appcontext(database.close_connection)
+    app.teardown_appcontext(close_connection)
 
     # Initialize DB (if not exists)
     init_db(app)
@@ -47,7 +48,7 @@ def create_app(test_config=None):
     def image_url_filter(image_path):
         if not image_path or image_path == 'placeholder.jpg':
             return url_for('static', filename='images/placeholder.jpg')
-        if image_path.startswith('http://') or image_path.startswith('https://'):
+        if image_path.startswith(('http://', 'https://')):
             return image_path
         return url_for('static', filename='images/' + image_path)
 
@@ -62,18 +63,14 @@ def create_app(test_config=None):
         if request.path.startswith('/static') or request.endpoint == 'static' or request.path == '/favicon.ico':
             return None
 
-        import time
-        from services.qr_service import get_client_ip
         client_ip = get_client_ip(request)
-
         now = time.time()
         if now > _blocked_cache['expiry']:
             try:
-                from database import get_db
                 db = get_db()
                 rows = db.execute('SELECT ip_address FROM tbl_blocked_ips').fetchall()
                 _blocked_cache['ips'] = {r['ip_address'] for r in rows}
-                _blocked_cache['expiry'] = now + 60.0 # Cache for 60 seconds
+                _blocked_cache['expiry'] = now + 60.0  # Cache for 60 seconds
             except Exception:
                 pass
 

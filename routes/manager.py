@@ -9,6 +9,7 @@ import re
 import os
 import io
 import csv
+import time
 import urllib.parse
 
 from PIL import Image
@@ -16,7 +17,8 @@ from services.upload_service import (
     process_csv_upload, process_image_upload,
     generate_next_sku, upload_product_image_file
 )
-from services.qr_service import get_shop_base_url, get_local_ip, parse_user_agent
+from services.qr_service import get_shop_base_url, get_local_ip, parse_user_agent, generate_shop_qr
+from services.mail_service import send_email_otp, generate_otp
 
 bp = Blueprint('manager', __name__, url_prefix='/manager')
 
@@ -131,14 +133,79 @@ def inject_staff_shop_context():
     }
 
 
+# ── Manager Email OTP Verification Routes ───────────────────────────────────────
+@bp.route('/send-register-otp', methods=['POST'])
+def send_register_otp():
+    """Generates & emails a 6-digit OTP for manager registration."""
+    data = request.get_json(silent=True) or {}
+    email = (data.get('email') or '').strip().lower()
+    shop_name = (data.get('shop_name') or 'Store Manager').strip()
+
+    if not email or '@' not in email or not re.match(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', email):
+        return jsonify({'success': False, 'error': 'Please enter a valid email address'}), 400
+
+    db = get_db()
+    existing = db.execute('SELECT manager_id FROM tbl_managers WHERE email = ?', (email,)).fetchone()
+    if existing:
+        return jsonify({'success': False, 'error': f"Email '{email}' is already registered. Please log in."}), 400
+
+    otp = generate_otp(6)
+    session['manager_reg_otp'] = {
+        'email': email,
+        'code': otp,
+        'expires_at': time.time() + 600  # 10 mins
+    }
+    session.pop('manager_email_verified', None)
+
+    bypass_code = os.environ.get('TESTING_OTP_BYPASS', '').strip()
+    result = send_email_otp(email, otp, shop_name, "Store Manager")
+    if result.get('success') or bypass_code:
+        return jsonify({'success': True, 'message': f'Verification code sent to {email}'})
+    else:
+        return jsonify({'success': False, 'error': result.get('error', 'Failed to send email OTP')}), 500
+
+
+@bp.route('/verify-register-otp', methods=['POST'])
+def verify_register_otp():
+    """Verifies manager email OTP. Accepts ADMINS testing bypass."""
+    data = request.get_json(silent=True) or {}
+    otp_input = (data.get('otp') or '').strip()
+    email_input = (data.get('email') or '').strip().lower()
+
+    # Testing bypass code
+    bypass_code = os.environ.get('TESTING_OTP_BYPASS', '').strip()
+    if bypass_code and otp_input == bypass_code:
+        target_email = email_input or (session.get('manager_reg_otp') or {}).get('email', '')
+        if target_email:
+            session['manager_email_verified'] = target_email
+            session.pop('manager_reg_otp', None)
+            return jsonify({'success': True, 'email': target_email, 'message': '✓ [TESTING] Email verified via bypass code.'})
+
+    otp_data = session.get('manager_reg_otp')
+    if not otp_data:
+        return jsonify({'success': False, 'error': 'No verification code requested. Please click Send Code first.'}), 400
+
+    if time.time() > otp_data.get('expires_at', 0):
+        session.pop('manager_reg_otp', None)
+        return jsonify({'success': False, 'error': 'Verification code expired. Please request a new one.'}), 400
+
+    if otp_input != otp_data.get('code'):
+        return jsonify({'success': False, 'error': 'Incorrect verification code. Please check your inbox.'}), 400
+
+    session['manager_email_verified'] = otp_data['email']
+    session.pop('manager_reg_otp', None)
+    return jsonify({'success': True, 'email': otp_data['email'], 'message': 'Email verified successfully!'})
+
+
 # ── Register ──────────────────────────────────────────────────────────────────
 @bp.route('/register', methods=('GET', 'POST'))
 def register():
     if request.method == 'POST':
         shop_name    = request.form.get('shop_name', '').strip()
-        email        = request.form.get('email', '').strip()
+        email        = request.form.get('email', '').strip().lower()
         password     = request.form.get('password', '').strip()
         phone_number = request.form.get('phone_number', '').strip()
+        otp_code     = request.form.get('otp_code', '').strip()
         shop_slug    = re.sub(r'[^a-z0-9]+', '-', shop_name.lower()).strip('-')
 
         error = None
@@ -152,6 +219,19 @@ def register():
             error = 'Please enter a valid 10-digit phone number.'
         elif not shop_slug:
             error = 'Shop name must contain valid letters or numbers.'
+
+        # Email OTP verification check
+        bypass_code = os.environ.get('TESTING_OTP_BYPASS', '').strip()
+        is_verified = (session.get('manager_email_verified') == email) or (bypass_code and otp_code == bypass_code)
+
+        # Check if direct valid OTP was submitted in form
+        if not is_verified and otp_code:
+            otp_data = session.get('manager_reg_otp')
+            if otp_data and otp_data.get('email') == email and otp_data.get('code') == otp_code and time.time() <= otp_data.get('expires_at', 0):
+                is_verified = True
+
+        if error is None and not is_verified:
+            error = 'Please verify your email address with the OTP code before registering.'
 
         if error is None:
             db = get_db()
@@ -169,15 +249,21 @@ def register():
                 )
                 db.commit()
                 generate_shop_qr(shop_slug, current_app.config['QR_FOLDER'], base_url)
+                
+                new_mgr = db.execute('SELECT manager_id FROM tbl_managers WHERE email = ?', (email,)).fetchone()
+                session.clear()
+                session['manager_id'] = new_mgr['manager_id']
+                session['is_staff']   = False
+                session['staff_role'] = 'Full'
+
+                flash(f'Welcome to {shop_name}! Your shop is now live.', 'success')
+                return redirect(url_for('manager.dashboard'))
             except (sqlite3.IntegrityError, ValueError) as e:
                 error = (f"Shop name '{shop_name}' is already taken."
                          if 'shop_slug' in str(e)
                          else f"Email '{email}' is already registered.")
-            else:
-                flash('Registration successful! Please log in.', 'success')
-                return redirect(url_for('manager.login'))
 
-        flash(error)
+        flash(error, 'error')
 
     return render_template('manager/register.html')
 
@@ -434,8 +520,12 @@ def quick_edit_product(product_id):
 
 
 # ── Setting toggles ───────────────────────────────────────────────────────────
+_ALLOWED_FLAGS = {'whatsapp_orders_enabled', 'price_mandatory', 'show_price', 'bulk_upload_enabled', 'secure_url_mode'}
+
 def _toggle_manager_flag(flag_col, manager_id, db):
-    """Generic toggle for boolean manager columns."""
+    """Generic toggle for boolean manager columns with whitelist validation."""
+    if flag_col not in _ALLOWED_FLAGS:
+        return
     row = db.execute(f'SELECT {flag_col} FROM tbl_managers WHERE manager_id = ?', (manager_id,)).fetchone()
     if row:
         new_val = 0 if row[flag_col] == 1 else 1

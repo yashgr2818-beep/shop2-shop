@@ -1,6 +1,9 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session
 from werkzeug.security import check_password_hash, generate_password_hash
 from database import get_db
+from collections import defaultdict
+from datetime import datetime
+from services.qr_service import get_local_ip
 import os
 
 bp = Blueprint('admin', __name__, url_prefix='/admin')
@@ -56,12 +59,10 @@ def dashboard():
     ).fetchall()
 
     # Group products by manager_id for per-manager expand view
-    from collections import defaultdict
     products_by_manager = defaultdict(list)
     for p in all_products:
         products_by_manager[p['manager_id']].append(p)
 
-    from services.qr_service import get_local_ip
     local_ip = get_local_ip()
 
     return render_template('admin/dashboard.html',
@@ -145,7 +146,6 @@ def insights():
     if guard: return guard
     
     db = get_db()
-    from datetime import datetime
     now_str = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
     
     # Platform KPIs
