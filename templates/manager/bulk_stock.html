@@ -2,9 +2,16 @@
 {% block title %}Bulk Stock Management - {{ manager.shop_name }}{% endblock %}
 
 {% block content %}
-<div class="mb-8">
-    <h1 class="text-3xl font-bold text-slate-800">Quick Edit Inventory</h1>
-    <p class="text-slate-500 mt-1">Update stock quantities for all products in {{ manager.shop_name }}.</p>
+<div class="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div>
+        <h1 class="text-3xl font-bold text-slate-800">Quick Edit Inventory</h1>
+        <p class="text-slate-500 mt-1">Manage stock adjustments for all products in {{ manager.shop_name }}.</p>
+    </div>
+    <div>
+        <a href="{{ url_for('manager.download_stock_report') }}" class="inline-flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 text-sm font-semibold rounded-xl shadow-xs hover:bg-slate-50 transition-colors">
+            📥 Download CSV Report
+        </a>
+    </div>
 </div>
 
 <!-- Toast notification -->
@@ -15,15 +22,35 @@
     </div>
 </div>
 
-<form action="{{ url_for('manager.bulk_stock') }}" method="POST">
+<!-- Legend / Instructions -->
+<div class="mb-4 flex flex-wrap items-center gap-3 text-xs text-slate-600 bg-indigo-50/60 border border-indigo-100 rounded-xl px-4 py-2.5">
+    <span class="font-bold text-indigo-950 flex items-center gap-1.5">
+        💡 How to Adjust Stock:
+    </span>
+    <span class="inline-flex items-center gap-1 text-slate-700">
+        • <strong>Set Stock</strong> shows the current stock (unchangeable).
+    </span>
+    <span class="inline-flex items-center gap-1 text-slate-700">
+        • Type <code class="bg-white px-1.5 py-0.5 rounded border border-indigo-200 font-mono text-indigo-700 font-bold">+5</code> or <code class="bg-white px-1.5 py-0.5 rounded border border-indigo-200 font-mono text-rose-700 font-bold">-3</code> into <strong>Quick Adjust</strong>.
+    </span>
+    <span class="inline-flex items-center gap-1 text-slate-700">
+        • Click <strong>Apply</strong> for a single product, or click <strong>Save All Changes</strong> to update all products at once.
+    </span>
+</div>
+
+<form action="{{ url_for('manager.bulk_stock') }}" method="POST" id="bulk-stock-form">
     <div class="bg-white rounded-2xl shadow-xs border border-slate-200 overflow-hidden mb-6">
         <div class="px-6 py-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center sticky top-0 z-10">
             <div>
                 <h3 class="text-lg font-bold text-slate-800">Inventory Stock Levels</h3>
-                <p class="text-xs text-slate-400 mt-0.5">Use <strong>Set Stock</strong> to set exact value &nbsp;|&nbsp; Use <strong>Quick Adjust</strong> to add (+5) or subtract (-3) from current stock</p>
+                <p class="text-xs text-slate-400 mt-0.5">
+                    Enter deltas in <strong>Quick Adjust</strong> across products and click <strong>Save All Changes</strong>.
+                </p>
             </div>
-            <button type="submit" class="px-5 py-2 bg-slate-900 text-white text-sm font-bold rounded-xl shadow-xs hover:bg-slate-800 transition-colors cursor-pointer">
-                Save All Changes
+            <button type="submit"
+                    class="px-5 py-2.5 bg-slate-900 text-white text-sm font-bold rounded-xl shadow-md hover:bg-slate-800 active:scale-95 transition-all cursor-pointer flex items-center gap-2">
+                <span>💾</span>
+                <span>Save All Changes</span>
             </button>
         </div>
 
@@ -34,16 +61,23 @@
                         <th scope="col" class="px-5 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">SKU</th>
                         <th scope="col" class="px-5 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Product Name</th>
                         <th scope="col" class="px-5 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Status</th>
-                        <th scope="col" class="px-5 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider w-28">Set Stock</th>
-                        <th scope="col" class="px-5 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider w-48">
+                        <th scope="col" class="px-5 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider w-36">
+                            Set Stock
+                            <span class="ml-1 text-slate-400 font-normal normal-case">(current)</span>
+                        </th>
+                        <th scope="col" class="px-5 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider w-80">
                             Quick Adjust
-                            <span class="ml-1 text-slate-400 font-normal normal-case">(+5 or −3, press Enter)</span>
+                            <span class="ml-1 text-slate-400 font-normal normal-case">(+5 or −3, press Enter / Apply)</span>
                         </th>
                     </tr>
                 </thead>
                 <tbody class="bg-white divide-y divide-slate-200" id="stock-table-body">
                     {% for p in products %}
-                    <tr class="hover:bg-slate-50 transition-colors {% if p.stock_qty == 0 %}bg-rose-50/50{% endif %}" id="row-{{ p.product_id }}" data-product-id="{{ p.product_id }}">
+                    <tr class="hover:bg-slate-50 transition-colors {% if p.stock_qty == 0 %}bg-rose-50/50{% endif %}"
+                        id="row-{{ p.product_id }}"
+                        data-product-id="{{ p.product_id }}"
+                        data-current-stock="{{ p.stock_qty }}">
+
                         <td class="px-5 py-3.5 whitespace-nowrap text-sm text-slate-500 font-mono">{{ p.sku }}</td>
                         <td class="px-5 py-3.5 whitespace-nowrap text-sm font-semibold text-slate-900">{{ p.name }}</td>
                         <td class="px-5 py-3.5 whitespace-nowrap">
@@ -56,40 +90,38 @@
                             {% endif %}
                         </td>
 
-                        <!-- Set Stock (absolute value) -->
+                        <!-- Set Stock (Unchangeable / Non-editable display) -->
                         <td class="px-5 py-3.5 whitespace-nowrap">
-                            <input
-                                type="number" min="0"
-                                name="stock_{{ p.product_id }}"
-                                id="set-{{ p.product_id }}"
-                                value="{{ p.stock_qty }}"
-                                class="w-24 px-3 py-1.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-900 focus:outline-none font-semibold text-sm
-                                       {% if p.stock_qty == 0 %}text-rose-600 border-rose-300 bg-rose-50{% endif %}"
-                                title="Set exact stock value"
-                            >
+                            <div class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border {% if p.stock_qty == 0 %}bg-rose-50 border-rose-200 text-rose-700{% elif p.stock_qty <= 5 %}bg-amber-50 border-amber-200 text-amber-800{% else %}bg-slate-100 border-slate-200 text-slate-800{% endif %} font-semibold text-sm select-none"
+                                 id="stock-pill-{{ p.product_id }}"
+                                 title="Current stock quantity (unchangeable directly; use Quick Adjust to change)">
+                                <span id="stock-val-{{ p.product_id }}" class="font-bold text-base">{{ p.stock_qty }}</span>
+                                <span class="text-xs font-normal opacity-75">pcs</span>
+                            </div>
                         </td>
 
-                        <!-- Quick Adjust (delta) -->
+                        <!-- Quick Adjust (editable input + Apply button + live preview) -->
                         <td class="px-5 py-3.5 whitespace-nowrap">
                             <div class="flex items-center gap-2">
                                 <input
-                                    type="number"
+                                    type="text"
+                                    name="adj_{{ p.product_id }}"
                                     id="adj-{{ p.product_id }}"
                                     placeholder="e.g. +5 or -3"
-                                    class="w-32 px-3 py-1.5 border border-indigo-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none text-sm font-semibold text-indigo-700 bg-indigo-50 placeholder-indigo-300"
+                                    autocomplete="off"
+                                    class="w-28 px-3 py-1.5 border border-indigo-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none text-sm font-semibold text-indigo-800 bg-indigo-50/50 placeholder-indigo-300 transition-colors"
                                     data-product-id="{{ p.product_id }}"
-                                    title="Enter +5 to add or -3 to subtract. Press Enter to apply."
+                                    title="Type +5 to add, -3 to subtract. Click Apply or click Save All Changes."
+                                    oninput="onQuickAdjustInput({{ p.product_id }})"
                                     onkeydown="if(event.key==='Enter'){event.preventDefault();applyAdjust({{ p.product_id }})}"
                                 >
                                 <button
                                     type="button"
                                     onclick="applyAdjust({{ p.product_id }})"
-                                    class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg transition-colors cursor-pointer"
-                                    title="Apply adjustment"
+                                    class="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-xs font-bold rounded-lg transition-all cursor-pointer shadow-2xs"
+                                    title="Apply adjustment immediately for this product only"
                                 >Apply</button>
-                                <span id="cur-{{ p.product_id }}" class="text-xs font-bold text-slate-600 min-w-[40px]">
-                                    {{ p.stock_qty }} pcs
-                                </span>
+                                <span id="preview-{{ p.product_id }}" class="text-xs font-medium min-w-[70px]"></span>
                             </div>
                         </td>
                     </tr>
@@ -106,44 +138,74 @@
 
 <script>
 function showToast(msg, success) {
-    const toast      = document.getElementById('toast');
-    const inner      = document.getElementById('toast-inner');
-    const msgEl      = document.getElementById('toast-msg');
-    const iconEl     = document.getElementById('toast-icon');
+    const toast  = document.getElementById('toast');
+    const inner  = document.getElementById('toast-inner');
+    const msgEl  = document.getElementById('toast-msg');
+    const iconEl = document.getElementById('toast-icon');
     msgEl.textContent  = msg;
     iconEl.textContent = success ? '✅' : '❌';
-    inner.className    = `px-5 py-3 rounded-xl shadow-lg text-sm font-semibold text-white flex items-center gap-2 ${success ? 'bg-emerald-600' : 'bg-rose-600'}`;
+    inner.className = `px-5 py-3 rounded-xl shadow-lg text-sm font-semibold text-white flex items-center gap-2 ${success ? 'bg-emerald-600' : 'bg-rose-600'}`;
     toast.classList.remove('hidden');
     clearTimeout(toast._timer);
     toast._timer = setTimeout(() => toast.classList.add('hidden'), 3000);
 }
 
+/* Live preview calculation when typing in Quick Adjust */
+function onQuickAdjustInput(productId) {
+    const adjInput   = document.getElementById('adj-' + productId);
+    const previewEl  = document.getElementById('preview-' + productId);
+    const row        = document.getElementById('row-' + productId);
+    const curStock   = parseInt(row.dataset.currentStock, 10) || 0;
+
+    const val = adjInput.value.trim();
+    if (!val || val === '+' || val === '-') {
+        previewEl.innerHTML = '';
+        return;
+    }
+
+    const delta = parseInt(val.replace('+', ''), 10);
+    if (isNaN(delta) || delta === 0) {
+        previewEl.innerHTML = '';
+        return;
+    }
+
+    const newQty = Math.max(0, curStock + delta);
+
+    if (delta > 0) {
+        previewEl.innerHTML = `<span class="inline-flex items-center gap-1 text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 font-bold text-xs">→ ${newQty} pcs <span class="font-normal text-[11px]">(+${delta})</span></span>`;
+    } else {
+        previewEl.innerHTML = `<span class="inline-flex items-center gap-1 text-rose-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-200 font-bold text-xs">→ ${newQty} pcs <span class="font-normal text-[11px]">(${delta})</span></span>`;
+    }
+}
+
+/* Apply button — AJAX single-row update using Quick Adjust delta */
 async function applyAdjust(productId) {
-    const adjInput = document.getElementById('adj-' + productId);
-    const setInput = document.getElementById('set-' + productId);
-    const curEl    = document.getElementById('cur-' + productId);
+    const adjInput   = document.getElementById('adj-' + productId);
+    const stockValEl = document.getElementById('stock-val-' + productId);
+    const stockPill  = document.getElementById('stock-pill-' + productId);
+    const previewEl  = document.getElementById('preview-' + productId);
+    const row        = document.getElementById('row-' + productId);
 
     const deltaStr = adjInput.value.trim();
-    if (deltaStr === '' || deltaStr === '-' || deltaStr === '+') {
+    if (!deltaStr || deltaStr === '-' || deltaStr === '+') {
         adjInput.focus();
         showToast('Enter a value like +5 or -3', false);
         return;
     }
 
-    const delta = parseInt(deltaStr, 10);
-    if (isNaN(delta)) {
-        showToast('Invalid number', false);
+    const delta = parseInt(deltaStr.replace('+', ''), 10);
+    if (isNaN(delta) || delta === 0) {
+        showToast('Invalid adjustment number', false);
         return;
     }
 
-    // Disable button while processing
     adjInput.disabled = true;
 
     try {
         const resp = await fetch('{{ url_for("manager.adjust_stock") }}', {
-            method: 'POST',
+            method:  'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ product_id: productId, delta: delta })
+            body:    JSON.stringify({ product_id: productId, delta: delta })
         });
 
         const data = await resp.json();
@@ -151,29 +213,29 @@ async function applyAdjust(productId) {
         if (data.success) {
             const newQty = data.new_qty;
 
-            // Update the "Set Stock" input to new value
-            setInput.value = newQty;
+            // Update row dataset and unchangeable Set Stock display
+            row.dataset.currentStock = newQty;
+            stockValEl.textContent   = newQty;
 
-            // Update the live display
-            curEl.textContent = newQty + ' pcs';
-
-            // Colour feedback based on qty
+            // Update pill styling based on new stock level
             if (newQty === 0) {
-                setInput.className = setInput.className.replace('border-slate-300', 'border-rose-300').replace('text-slate-', 'text-rose-') + ' bg-rose-50';
-                curEl.className    = 'text-xs font-bold text-rose-600 min-w-[40px]';
+                stockPill.className = 'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border bg-rose-50 border-rose-200 text-rose-700 font-semibold text-sm select-none';
+            } else if (newQty <= 5) {
+                stockPill.className = 'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border bg-amber-50 border-amber-200 text-amber-800 font-semibold text-sm select-none';
             } else {
-                curEl.className    = 'text-xs font-bold text-emerald-600 min-w-[40px]';
+                stockPill.className = 'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border bg-slate-100 border-slate-200 text-slate-800 font-semibold text-sm select-none';
             }
 
-            // Flash the adjustment input green then clear it
-            adjInput.classList.add('bg-emerald-50', 'border-emerald-400');
-            setTimeout(() => {
-                adjInput.classList.remove('bg-emerald-50', 'border-emerald-400');
-                adjInput.classList.add('bg-indigo-50', 'border-indigo-300');
-            }, 600);
-            adjInput.value = '';
+            // Clear inputs and preview
+            adjInput.value      = '';
+            previewEl.innerHTML = '';
 
-            showToast(`${data.name}: ${delta >= 0 ? '+' + delta : delta} → now ${newQty} pcs`, true);
+            // Flash row animation
+            row.classList.add('bg-emerald-50');
+            setTimeout(() => row.classList.remove('bg-emerald-50'), 800);
+
+            const sign = delta > 0 ? '+' : '';
+            showToast(`${data.name}: ${sign}${delta} → now ${newQty} pcs`, true);
         } else {
             showToast(data.error || 'Adjustment failed', false);
         }

@@ -2,19 +2,28 @@ import qrcode
 import os
 import socket
 import re
+import functools
+
+_cached_local_ip = None
 
 def get_local_ip():
-    """Detects active network IPs prioritizing Mobile Hotspot (192.168.137.x) or Wi-Fi."""
+    """Detects active network IPs prioritizing Mobile Hotspot (192.168.137.x) or Wi-Fi (cached)."""
+    global _cached_local_ip
+    if _cached_local_ip:
+        return _cached_local_ip
+
     try:
         hostname = socket.gethostname()
         all_ips = socket.gethostbyname_ex(hostname)[2]
         # Prioritize Hotspot IP if active
         for ip in all_ips:
             if ip.startswith('192.168.137.'):
+                _cached_local_ip = ip
                 return ip
         # Otherwise return first LAN IP
         for ip in all_ips:
             if not ip.startswith('127.'):
+                _cached_local_ip = ip
                 return ip
     except Exception:
         pass
@@ -24,8 +33,10 @@ def get_local_ip():
         s.connect(("8.8.8.8", 80))
         ip = s.getsockname()[0]
         s.close()
+        _cached_local_ip = ip
         return ip
     except Exception:
+        _cached_local_ip = "127.0.0.1"
         return "127.0.0.1"
 
 def get_client_ip(request):
@@ -50,8 +61,9 @@ def get_client_ip(request):
         
     return request.remote_addr or "127.0.0.1"
 
+@functools.lru_cache(maxsize=512)
 def parse_user_agent(ua_string):
-    """Parses a User-Agent string into a clean, human-readable Device and Browser label."""
+    """Parses a User-Agent string into a clean, human-readable Device and Browser label (memoized)."""
     if not ua_string:
         return "📱 Mobile / Web Visitor"
         
@@ -111,9 +123,29 @@ def parse_user_agent(ua_string):
 
 import io
 
-def get_shop_base_url(request=None):
-    """Determines canonical shop base URL considering Render, reverse proxies, custom domains, or local host."""
-    # 1. Prioritize configured environment variables
+def get_shop_base_url(request=None, for_qr_scan=False):
+    """Determines canonical shop base URL dynamically for the active environment (Render 1, Render 2, Localhost, LAN, or Custom Domain)."""
+    # 1. Active HTTP request (highest priority): always reflects the actual host currently accessed by user
+    if request:
+        proto = request.headers.get('X-Forwarded-Proto', request.scheme or 'http')
+        host = request.headers.get('X-Forwarded-Host', request.host)
+        if host:
+            host = host.strip()
+            # Force https on Render or production domains
+            if 'onrender.com' in host or 'render.com' in host or not host.startswith(('127.0.0.1', 'localhost', '192.168.', '10.', '172.')):
+                proto = 'https'
+                return f"{proto}://{host}".rstrip('/')
+            
+            # If local host and generating QR for phones to scan over LAN/Wi-Fi:
+            if for_qr_scan and (host.startswith('127.0.0.1') or host.startswith('localhost')):
+                port = host.split(':')[1] if ':' in host else '5000'
+                local_ip = get_local_ip()
+                return f"http://{local_ip}:{port}"
+                
+            return f"{proto}://{host}".rstrip('/')
+        return request.host_url.rstrip('/')
+
+    # 2. Offline / CLI / Background tasks without request: use environment configurations
     for env_key in ('RENDER_EXTERNAL_URL', 'RENDER_URL', 'APP_URL', 'BASE_URL', 'SERVER_NAME'):
         val = os.environ.get(env_key)
         if val and val.strip():
@@ -122,18 +154,7 @@ def get_shop_base_url(request=None):
                 url = 'https://' + url
             return url
 
-    # 2. Check active HTTP request headers (Render / Cloudflare / Proxy / Direct)
-    if request:
-        proto = request.headers.get('X-Forwarded-Proto', request.scheme or 'http')
-        host = request.headers.get('X-Forwarded-Host', request.host)
-        if host:
-            # Force https on Render, Cloudflare, or production domains
-            if 'onrender.com' in host or 'render.com' in host or not host.startswith(('127.0.0.1', 'localhost', '192.168.', '10.', '172.')):
-                proto = 'https'
-            return f"{proto}://{host}".rstrip('/')
-        return request.host_url.rstrip('/')
-
-    # 3. Check if running inside Render environment without active request
+    # 3. Check if running inside Render environment
     if os.environ.get('RENDER') or os.environ.get('RENDER_SERVICE_NAME'):
         service_name = os.environ.get('RENDER_SERVICE_NAME', 'qr-shop-catalog')
         return f"https://{service_name}.onrender.com"
@@ -155,7 +176,7 @@ def generate_qr_image_bytes(target_url):
 
     img = qr.make_image(fill_color="black", back_color="white")
     buffer = io.BytesIO()
-    img.save(buffer, format='PNG')
+    img.save(buffer)
     buffer.seek(0)
     return buffer.getvalue()
 

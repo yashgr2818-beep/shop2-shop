@@ -121,19 +121,39 @@
                         <!-- CTA Buttons -->
                         <div class="mt-3 space-y-1.5">
                             {% if product.stock_qty > 0 %}
-                                <button onclick="addToCart({{ product.product_id }})" 
-                                   class="w-full bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold py-2 rounded-lg shadow-sm transition-colors flex items-center justify-center gap-1">
+                                {% set item_qty = cart_quantities.get(product.product_id, 0) if cart_quantities else 0 %}
+                                
+                                <!-- Add to Cart Button (Visible when qty == 0) -->
+                                <button id="add-btn-{{ product.product_id }}"
+                                   onclick="handleAddToCart({{ product.product_id }})" 
+                                   class="w-full bg-slate-900 hover:bg-slate-800 active:scale-[0.98] text-white text-xs font-bold py-2.5 rounded-xl shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer {{ 'hidden' if item_qty > 0 else '' }}">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
                                     Add to Cart
                                 </button>
+
+                                <!-- Quantity Selector ([-] QTY [+]) (Visible when qty > 0) -->
+                                <div id="qty-ctrl-{{ product.product_id }}"
+                                     class="w-full flex items-center justify-between bg-slate-100/90 rounded-xl p-1 border border-slate-200/80 shadow-2xs transition-all {{ '' if item_qty > 0 else 'hidden' }}">
+                                    <button type="button" onclick="changeCatalogQty({{ product.product_id }}, 'decrease')"
+                                            class="w-8 h-8 flex items-center justify-center rounded-lg bg-white shadow-xs hover:bg-slate-50 active:scale-90 text-slate-800 font-extrabold text-base transition-transform cursor-pointer border border-slate-200/50">
+                                        −
+                                    </button>
+                                    <span id="qty-val-{{ product.product_id }}" class="text-sm font-bold text-slate-900 px-2 select-none">
+                                        {{ item_qty if item_qty > 0 else 1 }}
+                                    </span>
+                                    <button type="button" onclick="changeCatalogQty({{ product.product_id }}, 'increase')"
+                                            class="w-8 h-8 flex items-center justify-center rounded-lg bg-white shadow-xs hover:bg-slate-50 active:scale-90 text-slate-800 font-extrabold text-base transition-transform cursor-pointer border border-slate-200/50">
+                                        +
+                                    </button>
+                                </div>
                             {% else %}
-                                <button disabled class="w-full bg-slate-100 text-slate-400 text-xs font-bold py-2 rounded-lg cursor-not-allowed">
+                                <button disabled class="w-full bg-slate-100 text-slate-400 text-xs font-bold py-2.5 rounded-xl cursor-not-allowed">
                                     Out of Stock
                                 </button>
                             {% endif %}
 
                             <a href="{{ wa_url }}" target="_blank" onclick="trackProductView({{ product.product_id }})"
-                               class="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-2 rounded-lg shadow-sm transition-colors flex items-center justify-center gap-1.5"
+                               class="w-full bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white text-xs font-bold py-2 rounded-xl shadow-2xs transition-all flex items-center justify-center gap-1.5"
                                title="Ask product owner on WhatsApp for full details">
                                 <span>💬</span> Ask Details on WhatsApp
                             </a>
@@ -151,6 +171,8 @@
                 <p class="text-slate-500 text-sm mt-1">This shop hasn't added any products yet.</p>
             </div>
         {% endif %}
+    </main>
+
     <!-- Image Preview Modal -->
     <div id="imageModal" class="fixed inset-0 z-50 hidden bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" onclick="closeImageModal()">
         <div class="relative max-w-3xl max-h-[90vh] bg-white rounded-2xl overflow-hidden shadow-2xl p-4 w-full" onclick="event.stopPropagation()">
@@ -218,7 +240,21 @@
         });
     }
 
-    async function addToCart(productId) {
+    function updateCartBadge(count) {
+        const badge = document.getElementById('cartBadge');
+        if (!badge) return;
+        if (count > 0) {
+            badge.textContent = count;
+            badge.classList.remove('hidden');
+            badge.classList.add('inline-flex');
+        } else {
+            badge.textContent = '0';
+            badge.classList.add('hidden');
+            badge.classList.remove('inline-flex');
+        }
+    }
+
+    async function handleAddToCart(productId) {
         trackProductView(productId); // Trigger view metric on add-to-cart (Req 7)
         try {
             const response = await fetch("{{ url_for('shop.add_to_cart', shop_slug=manager.shop_slug) }}", {
@@ -228,17 +264,52 @@
             });
             const data = await response.json();
             if (data.status === 'success') {
-                const badge = document.getElementById('cartBadge');
-                badge.textContent = data.cart_count;
-                badge.classList.remove('hidden');
-                badge.classList.add('inline-flex');
+                updateCartBadge(data.cart_count);
+
+                // Switch button to quantity control
+                const addBtn = document.getElementById(`add-btn-${productId}`);
+                const qtyCtrl = document.getElementById(`qty-ctrl-${productId}`);
+                const qtyVal = document.getElementById(`qty-val-${productId}`);
+
+                if (qtyVal) qtyVal.textContent = data.item_qty || 1;
+                if (addBtn) addBtn.classList.add('hidden');
+                if (qtyCtrl) qtyCtrl.classList.remove('hidden');
             }
         } catch (error) {
             console.error('Error adding to cart:', error);
         }
     }
+
+    async function changeCatalogQty(productId, action) {
+        try {
+            const response = await fetch("{{ url_for('shop.update_cart', shop_slug=manager.shop_slug) }}", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ product_id: productId, action: action })
+            });
+            const data = await response.json();
+            if (data.status === 'success') {
+                updateCartBadge(data.cart_count);
+
+                const addBtn = document.getElementById(`add-btn-${productId}`);
+                const qtyCtrl = document.getElementById(`qty-ctrl-${productId}`);
+                const qtyVal = document.getElementById(`qty-val-${productId}`);
+
+                if (data.item_qty > 0) {
+                    if (qtyVal) qtyVal.textContent = data.item_qty;
+                    if (addBtn) addBtn.classList.add('hidden');
+                    if (qtyCtrl) qtyCtrl.classList.remove('hidden');
+                } else {
+                    // Qty is 0 -> Switch back to Add to Cart button
+                    if (qtyVal) qtyVal.textContent = '1';
+                    if (qtyCtrl) qtyCtrl.classList.add('hidden');
+                    if (addBtn) addBtn.classList.remove('hidden');
+                }
+            }
+        } catch (error) {
+            console.error('Error changing cart quantity:', error);
+        }
+    }
     </script>
-</body>
-</html>
 </body>
 </html>

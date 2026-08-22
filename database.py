@@ -30,10 +30,12 @@ def _handle_libsql_error(e):
 
 
 class LibsqlRow:
-    """Drop-in replacement for sqlite3.Row for LibSQL responses."""
+    """Fast, memory-efficient drop-in replacement for sqlite3.Row for LibSQL responses."""
+    __slots__ = ('_cols', '_col_map', '_values')
+
     def __init__(self, cols, values):
-        self._cols = list(cols)
-        self._col_map = {c.lower(): i for i, c in enumerate(cols)} if cols else {}
+        self._cols = tuple(cols) if cols else ()
+        self._col_map = {c.lower(): i for i, c in enumerate(self._cols)} if self._cols else {}
         self._values = tuple(values) if values is not None else ()
 
     def __getitem__(self, key):
@@ -78,8 +80,11 @@ class LibsqlRow:
 
 class LibsqlCursorWrapper:
     """Cursor wrapper that converts tuple results to LibsqlRow instances and maps exceptions."""
-    def __init__(self, raw_cursor):
+    __slots__ = ('_cur', '_conn_wrapper')
+
+    def __init__(self, raw_cursor, conn_wrapper=None):
         self._cur = raw_cursor
+        self._conn_wrapper = conn_wrapper
 
     @property
     def description(self):
@@ -107,6 +112,18 @@ class LibsqlCursorWrapper:
                 self._cur.execute(sql)
             return self
         except Exception as e:
+            # If connection dropped, attempt single reconnect retry
+            if self._conn_wrapper and any(k in str(e).lower() for k in ('connection', 'closed', 'socket', 'broken', 'reset')):
+                try:
+                    self._conn_wrapper._reconnect()
+                    self._cur = self._conn_wrapper._conn.cursor()
+                    if params is not None:
+                        self._cur.execute(sql, params)
+                    else:
+                        self._cur.execute(sql)
+                    return self
+                except Exception:
+                    pass
             _handle_libsql_error(e)
 
     def executemany(self, sql, seq_of_params):
@@ -153,14 +170,25 @@ class LibsqlCursorWrapper:
 
 
 class LibsqlConnectionWrapper:
-    """Connection wrapper supporting standard sqlite3 operations and mapping exceptions."""
+    """Persistent connection wrapper supporting standard sqlite3 operations and mapping exceptions."""
     def __init__(self, raw_conn):
         self._conn = raw_conn
         self._closed = False
         self.row_factory = None
 
+    def _reconnect(self):
+        url = os.environ.get('TURSO_DATABASE_URL', '').strip()
+        token = os.environ.get('TURSO_AUTH_TOKEN', '').strip()
+        if url and token and LIBSQL_AVAILABLE:
+            try:
+                self._conn.close()
+            except Exception:
+                pass
+            self._conn = libsql.connect(url, auth_token=token)
+            self._closed = False
+
     def cursor(self):
-        return LibsqlCursorWrapper(self._conn.cursor())
+        return LibsqlCursorWrapper(self._conn.cursor(), conn_wrapper=self)
 
     def execute(self, sql, params=None):
         try:
@@ -169,15 +197,26 @@ class LibsqlConnectionWrapper:
                 cur.execute(sql, params)
             else:
                 cur.execute(sql)
-            return LibsqlCursorWrapper(cur)
+            return LibsqlCursorWrapper(cur, conn_wrapper=self)
         except Exception as e:
+            if any(k in str(e).lower() for k in ('connection', 'closed', 'socket', 'broken', 'reset')):
+                try:
+                    self._reconnect()
+                    cur = self._conn.cursor()
+                    if params is not None:
+                        cur.execute(sql, params)
+                    else:
+                        cur.execute(sql)
+                    return LibsqlCursorWrapper(cur, conn_wrapper=self)
+                except Exception:
+                    pass
             _handle_libsql_error(e)
 
     def executemany(self, sql, seq_of_params):
         try:
             cur = self._conn.cursor()
             cur.executemany(sql, seq_of_params)
-            return LibsqlCursorWrapper(cur)
+            return LibsqlCursorWrapper(cur, conn_wrapper=self)
         except Exception as e:
             _handle_libsql_error(e)
 
@@ -208,6 +247,10 @@ class LibsqlConnectionWrapper:
                 pass
 
 
+# Global pooled connection for LibSQL to eliminate per-request connection overhead
+_cached_libsql_wrapper = None
+
+
 def is_turso_configured(app=None):
     """Check if Turso Cloud DB URL and Auth Token are configured."""
     url = (app.config.get('TURSO_DATABASE_URL') if app else None) or os.environ.get('TURSO_DATABASE_URL')
@@ -217,27 +260,30 @@ def is_turso_configured(app=None):
 
 def get_db():
     """Retrieve or create the database connection for current request context."""
+    global _cached_libsql_wrapper
     db = getattr(g, '_database', None)
-    if db is None or getattr(db, '_closed', False):
-        url = current_app.config.get('TURSO_DATABASE_URL') or os.environ.get('TURSO_DATABASE_URL')
-        token = current_app.config.get('TURSO_AUTH_TOKEN') or os.environ.get('TURSO_AUTH_TOKEN')
+    if db is not None and not getattr(db, '_closed', False):
+        return db
 
-        if LIBSQL_AVAILABLE and url and token and url.strip() and token.strip():
+    url = (current_app.config.get('TURSO_DATABASE_URL') if current_app else None) or os.environ.get('TURSO_DATABASE_URL')
+    token = (current_app.config.get('TURSO_AUTH_TOKEN') if current_app else None) or os.environ.get('TURSO_AUTH_TOKEN')
+
+    if LIBSQL_AVAILABLE and url and token and url.strip() and token.strip():
+        if _cached_libsql_wrapper is None or getattr(_cached_libsql_wrapper, '_closed', False):
             raw_conn = libsql.connect(url.strip(), auth_token=token.strip())
-            db = g._database = LibsqlConnectionWrapper(raw_conn)
-        else:
-            db = g._database = sqlite3.connect(current_app.config['DATABASE'])
-            db.row_factory = sqlite3.Row
-            # Enable foreign key support
-            db.execute("PRAGMA foreign_keys = ON")
+            _cached_libsql_wrapper = LibsqlConnectionWrapper(raw_conn)
+        db = g._database = _cached_libsql_wrapper
+    else:
+        db = g._database = sqlite3.connect(current_app.config['DATABASE'])
+        db.row_factory = sqlite3.Row
+        # Enable foreign key support
+        db.execute("PRAGMA foreign_keys = ON")
     return db
 
 
 def init_db(app):
     """Initialize database tables if running local SQLite."""
     if is_turso_configured(app):
-        # Turso cloud database is already migrated and hosted in the cloud.
-        # Avoid opening database connections in master process before Gunicorn forks workers.
         return
 
     with app.app_context():
@@ -277,9 +323,10 @@ def init_db(app):
 
 
 def close_connection(exception):
-    """Clean up active DB connection at the end of the request context."""
+    """Clean up local DB connection at the end of the request context."""
     db = g.pop('_database', None)
-    if db is not None:
+    # Only close local SQLite per-request connections; keep pooled LibSQL client open
+    if db is not None and not isinstance(db, LibsqlConnectionWrapper):
         try:
             db.close()
         except Exception:

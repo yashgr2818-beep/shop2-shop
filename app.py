@@ -53,22 +53,43 @@ def create_app(test_config=None):
 
     app.jinja_env.globals['image_url'] = image_url_filter
 
+    # Blocked IPs in-memory cache to eliminate redundant database queries on every request
+    _blocked_cache = {'ips': set(), 'expiry': 0}
+
     @app.before_request
     def check_blocked_ip():
+        # Fast path: skip DB check for static files, favicons, or static endpoints
+        if request.path.startswith('/static') or request.endpoint == 'static' or request.path == '/favicon.ico':
+            return None
+
+        import time
         from services.qr_service import get_client_ip
-        from database import get_db
         client_ip = get_client_ip(request)
-        db = get_db()
-        blocked = db.execute('SELECT ip_id FROM tbl_blocked_ips WHERE ip_address = ?', (client_ip,)).fetchone()
-        if blocked:
+
+        now = time.time()
+        if now > _blocked_cache['expiry']:
+            try:
+                from database import get_db
+                db = get_db()
+                rows = db.execute('SELECT ip_address FROM tbl_blocked_ips').fetchall()
+                _blocked_cache['ips'] = {r['ip_address'] for r in rows}
+                _blocked_cache['expiry'] = now + 60.0 # Cache for 60 seconds
+            except Exception:
+                pass
+
+        if client_ip in _blocked_cache['ips']:
             return render_template('403.html', ip_address=client_ip), 403
 
     @app.after_request
-    def set_security_headers(response):
+    def set_security_and_caching_headers(response):
         response.headers['X-Content-Type-Options'] = 'nosniff'
         response.headers['X-Frame-Options'] = 'SAMEORIGIN'
         response.headers['X-XSS-Protection'] = '1; mode=block'
         response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+
+        # Optimize static asset delivery with client caching
+        if request.path.startswith('/static'):
+            response.headers['Cache-Control'] = 'public, max-age=86400, stale-while-revalidate=604800'
         return response
 
     @app.route('/')

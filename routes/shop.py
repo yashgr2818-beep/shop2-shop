@@ -7,26 +7,36 @@ import uuid
 bp = Blueprint('shop', __name__, url_prefix='/shop')
 
 def record_visitor_activity(manager_id, shop_slug, is_scan=False):
-    """Records new visitor scan/visit or refreshes active sliding window (15 mins)."""
+    """Records new visitor scan/visit or refreshes active sliding window (15 mins) with throttling."""
     db = get_db()
     ip_addr = get_client_ip(request)
     user_agent = request.headers.get('User-Agent', '')
     now = datetime.utcnow()
+    now_ts = now.timestamp()
     expires = (now + timedelta(minutes=15)).strftime('%Y-%m-%d %H:%M:%S')
     
     session_key = f"visitor_token_{shop_slug}"
+    refresh_key = f"visitor_refreshed_{shop_slug}"
     existing_token = session.get(session_key)
+    last_refresh = session.get(refresh_key, 0)
     
     if existing_token and not is_scan:
-        db.execute(
-            "UPDATE tbl_visitor_sessions SET expires_at = ?, ip_address = COALESCE(NULLIF(ip_address, ''), ?) WHERE session_token = ? AND manager_id = ?",
-            (expires, ip_addr, existing_token, manager_id)
-        )
-        db.commit()
+        # Throttle sliding window refresh to once every 2 minutes to prevent DB thrashing
+        if (now_ts - last_refresh) > 120:
+            try:
+                db.execute(
+                    "UPDATE tbl_visitor_sessions SET expires_at = ?, ip_address = COALESCE(NULLIF(ip_address, ''), ?) WHERE session_token = ? AND manager_id = ?",
+                    (expires, ip_addr, existing_token, manager_id)
+                )
+                db.commit()
+                session[refresh_key] = now_ts
+            except Exception:
+                pass
     else:
         # New scan or first visit
         new_token = uuid.uuid4().hex
         session[session_key] = new_token
+        session[refresh_key] = now_ts
         try:
             db.execute('''
                 INSERT INTO tbl_visitor_sessions (manager_id, session_token, ip_address, user_agent, expires_at)
@@ -37,32 +47,35 @@ def record_visitor_activity(manager_id, shop_slug, is_scan=False):
             print(f"Error logging visitor session: {e}")
 
 def get_or_create_customer_session(shop_slug):
+    """Retrieves or creates a persistent customer session with throttled activity timestamps."""
     db = get_db()
     session_key = f"customer_session_{shop_slug}"
+    active_key = f"cust_active_{shop_slug}"
+    now_ts = datetime.utcnow().timestamp()
+    last_active = session.get(active_key, 0)
     
     if session_key not in session:
         session_id = str(uuid.uuid4())
         session[session_key] = session_id
-        db.execute(
-            'INSERT INTO tbl_customer_sessions (session_id, shop_slug) VALUES (?, ?)',
-            (session_id, shop_slug)
-        )
-        db.commit()
-    else:
-        session_id = session[session_key]
-        # Ensure it exists in DB (could have been cleared from DB but still in cookie)
-        exists = db.execute('SELECT 1 FROM tbl_customer_sessions WHERE session_id=?', (session_id,)).fetchone()
-        if not exists:
+        session[active_key] = now_ts
+        try:
             db.execute(
                 'INSERT INTO tbl_customer_sessions (session_id, shop_slug) VALUES (?, ?)',
                 (session_id, shop_slug)
             )
-        else:
+            db.commit()
+        except Exception:
+            pass
+    elif (now_ts - last_active) > 300: # Only update activity timestamp once every 5 minutes
+        session[active_key] = now_ts
+        try:
             db.execute(
                 "UPDATE tbl_customer_sessions SET last_active = CURRENT_TIMESTAMP WHERE session_id=?",
-                (session_id,)
+                (session[session_key],)
             )
-        db.commit()
+            db.commit()
+        except Exception:
+            pass
     
     return session[session_key]
 
@@ -88,21 +101,30 @@ def catalog(shop_slug):
 
     session_id = get_or_create_customer_session(shop_slug)
     
-    # Get cart item count
-    cart_count = db.execute(
-        'SELECT SUM(quantity) as count FROM tbl_cart_items WHERE session_id=?',
+    # Get cart items map: {product_id: quantity}
+    cart_rows = db.execute(
+        'SELECT product_id, quantity FROM tbl_cart_items WHERE session_id=?',
         (session_id,)
-    ).fetchone()['count'] or 0
+    ).fetchall()
+    cart_quantities = {row['product_id']: row['quantity'] for row in cart_rows}
+    cart_count = sum(cart_quantities.values())
 
     local_ip = get_local_ip()
 
-    return render_template('shop/catalog.html', manager=manager, products=products, local_ip=local_ip, cart_count=cart_count)
+    return render_template(
+        'shop/catalog.html',
+        manager=manager,
+        products=products,
+        local_ip=local_ip,
+        cart_count=cart_count,
+        cart_quantities=cart_quantities
+    )
 
 
 # ── Track Product View ───────────────────────────────────────────────────────
 @bp.route('/<shop_slug>/view_product', methods=['POST'])
 def view_product(shop_slug):
-    data = request.get_json()
+    data = request.get_json() or {}
     product_id = data.get('product_id')
     if product_id:
         db = get_db()
@@ -118,15 +140,17 @@ def view_product(shop_slug):
 # ── Add to Cart ──────────────────────────────────────────────────────────────
 @bp.route('/<shop_slug>/add_to_cart', methods=['POST'])
 def add_to_cart(shop_slug):
-    data = request.get_json()
+    data = request.get_json() or {}
     product_id = data.get('product_id')
+    if not product_id:
+        return jsonify({'status': 'error', 'message': 'Missing product_id'}), 400
     
     db = get_db()
     session_id = get_or_create_customer_session(shop_slug)
     
     # Check if item already in cart
     existing = db.execute(
-        'SELECT * FROM tbl_cart_items WHERE session_id=? AND product_id=?',
+        'SELECT quantity FROM tbl_cart_items WHERE session_id=? AND product_id=?',
         (session_id, product_id)
     ).fetchone()
     
@@ -135,27 +159,31 @@ def add_to_cart(shop_slug):
             'UPDATE tbl_cart_items SET quantity = quantity + 1 WHERE session_id=? AND product_id=?',
             (session_id, product_id)
         )
+        item_qty = existing['quantity'] + 1
     else:
         db.execute(
             'INSERT INTO tbl_cart_items (session_id, product_id, quantity) VALUES (?, ?, 1)',
             (session_id, product_id)
         )
+        item_qty = 1
     db.commit()
     
-    # Return updated cart count
+    # Return updated cart count and item quantity
     cart_count = db.execute(
         'SELECT SUM(quantity) as count FROM tbl_cart_items WHERE session_id=?',
         (session_id,)
     ).fetchone()['count'] or 0
     
-    return jsonify({'status': 'success', 'cart_count': cart_count})
+    return jsonify({'status': 'success', 'cart_count': cart_count, 'item_qty': item_qty})
 
 # ── Update Cart Item ─────────────────────────────────────────────────────────
 @bp.route('/<shop_slug>/update_cart', methods=['POST'])
 def update_cart(shop_slug):
-    data = request.get_json()
+    data = request.get_json() or {}
     product_id = data.get('product_id')
     action = data.get('action') # 'increase', 'decrease', 'remove'
+    if not product_id:
+        return jsonify({'status': 'error', 'message': 'Missing product_id'}), 400
     
     db = get_db()
     session_id = get_or_create_customer_session(shop_slug)
@@ -174,7 +202,16 @@ def update_cart(shop_slug):
         
     db.commit()
     
-    return jsonify({'status': 'success'})
+    # Return updated item quantity and total cart count
+    item = db.execute('SELECT quantity FROM tbl_cart_items WHERE session_id=? AND product_id=?', (session_id, product_id)).fetchone()
+    item_qty = item['quantity'] if item else 0
+
+    cart_count = db.execute(
+        'SELECT SUM(quantity) as count FROM tbl_cart_items WHERE session_id=?',
+        (session_id,)
+    ).fetchone()['count'] or 0
+    
+    return jsonify({'status': 'success', 'item_qty': item_qty, 'cart_count': cart_count})
 
 # ── View Cart ────────────────────────────────────────────────────────────────
 @bp.route('/<shop_slug>/cart')
@@ -323,7 +360,7 @@ def shop_qr_image(shop_slug):
     if origin and origin.startswith(('http://', 'https://')):
         base_url = origin.rstrip('/')
     else:
-        base_url = get_shop_base_url(request)
+        base_url = get_shop_base_url(request, for_qr_scan=True)
 
     scan_url = f"{base_url}/scan/{shop_slug}"
     img_bytes = generate_qr_image_bytes(scan_url)

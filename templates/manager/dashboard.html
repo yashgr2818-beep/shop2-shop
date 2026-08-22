@@ -56,7 +56,7 @@
 
         <div class="relative group cursor-pointer" onclick="openPrintModal()">
             <div class="p-3 bg-white border-2 border-slate-100 rounded-2xl shadow-md group-hover:shadow-lg transition-all group-hover:scale-105">
-                <img src="{{ url_for('shop.shop_qr_image', shop_slug=manager.shop_slug) }}" alt="Shop QR Code" class="w-44 h-44 object-contain">
+                <img src="{{ url_for('shop.shop_qr_image', shop_slug=manager.shop_slug) }}" id="mainShopQrImg" alt="Shop QR Code" class="w-44 h-44 object-contain">
             </div>
             <div class="absolute inset-0 bg-black/40 rounded-2xl opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-white text-xs font-bold gap-1">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
@@ -89,7 +89,7 @@
             <!-- Dynamic URL preview -->
             <div class="pt-2 text-[11px] text-slate-500 truncate text-left bg-slate-50 px-2.5 py-1.5 rounded-lg border border-slate-200/60">
                 <span class="font-semibold text-slate-600">Store URL:</span>
-                <a href="{{ shop_url }}" target="_blank" class="text-blue-600 hover:underline font-mono ml-1">{{ shop_url }}</a>
+                <a href="{{ shop_url }}" id="dynamicStoreLink" target="_blank" class="text-blue-600 hover:underline font-mono ml-1">{{ shop_url }}</a>
             </div>
         </div>
     </div>
@@ -326,7 +326,7 @@
                                     Cancel
                                 </button>
                             </form>
-                            <form method="POST" action="{{ url_for('manager.delete_product', product_id=product.product_id) }}" class="inline" onsubmit="return confirm('Are you sure you want to delete product &quot;{{ product.name }}&quot;?');">
+                            <form method="POST" action="{{ url_for('manager.delete_product', product_id=product.product_id) }}" class="inline" onsubmit="return confirm('Are you sure you want to delete this product?');">
                                 <button type="submit"
                                         class="text-xs bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 px-2.5 py-1 rounded-md font-medium transition-colors border border-red-200" title="Delete product from catalog">
                                     🗑️ Delete
@@ -361,9 +361,40 @@
 </div>
 
 <script>
-const shopUrl = "{{ shop_url }}";
+const activeOrigin = window.location.origin || "{{ shop_base_url }}";
+const shopUrl = activeOrigin + "/shop/{{ manager.shop_slug }}";
+const scanUrl = activeOrigin + "/scan/{{ manager.shop_slug }}";
 const shopName = "{{ manager.shop_name }}";
-const qrImgSrc = "{{ url_for('shop.shop_qr_image', shop_slug=manager.shop_slug) }}";
+const qrImgSrc = "{{ url_for('shop.shop_qr_image', shop_slug=manager.shop_slug) }}?origin=" + encodeURIComponent(activeOrigin);
+
+document.addEventListener('DOMContentLoaded', function() {
+    const liveOrigin = window.location.origin || "{{ shop_base_url }}";
+    const liveShopUrl = liveOrigin + "/shop/{{ manager.shop_slug }}";
+    const dynamicQrSrc = "/shop/{{ manager.shop_slug }}/qr.png?origin=" + encodeURIComponent(liveOrigin);
+
+    // Update store URL preview links and text directly from browser URL
+    const storeLinkEl = document.getElementById('dynamicStoreLink');
+    if (storeLinkEl) {
+        storeLinkEl.href = liveShopUrl;
+        storeLinkEl.textContent = liveShopUrl;
+    }
+    const modalUrlEl = document.getElementById('modalStoreUrl');
+    if (modalUrlEl) modalUrlEl.textContent = liveShopUrl;
+    const standeeUrlEl = document.getElementById('standeeStoreUrl');
+    if (standeeUrlEl) standeeUrlEl.textContent = liveShopUrl;
+
+    // Update all QR images directly to match active browser URL
+    const mainImg = document.getElementById('mainShopQrImg');
+    if (mainImg) mainImg.src = dynamicQrSrc;
+    const modalImg = document.getElementById('modalShopQrImg');
+    if (modalImg) modalImg.src = dynamicQrSrc;
+    const standeeImg = document.getElementById('standeeShopQrImg');
+    if (standeeImg) standeeImg.src = dynamicQrSrc;
+
+    // Update all Download QR buttons
+    const downloadBtns = document.querySelectorAll('a[download*="-qr.png"]');
+    downloadBtns.forEach(btn => btn.href = dynamicQrSrc);
+});
 
 function copyShopLink() {
     navigator.clipboard.writeText(shopUrl).then(() => {
@@ -508,10 +539,10 @@ function closeImageModal() {
 
         <div class="py-5 text-center">
             <div class="p-3 bg-white border-2 border-slate-100 rounded-2xl shadow-inner inline-block mb-3">
-                <img src="{{ url_for('shop.shop_qr_image', shop_slug=manager.shop_slug) }}" alt="QR Code" class="w-36 h-36 mx-auto object-contain">
+                <img src="{{ url_for('shop.shop_qr_image', shop_slug=manager.shop_slug) }}" id="modalShopQrImg" alt="QR Code" class="w-36 h-36 mx-auto object-contain">
             </div>
             <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200 flex items-center justify-between gap-2 text-xs">
-                <span class="font-mono text-slate-600 truncate text-left">{{ shop_url }}</span>
+                <span class="font-mono text-slate-600 truncate text-left" id="modalStoreUrl">{{ shop_url }}</span>
                 <button onclick="copyShopLink()" class="font-bold text-blue-600 hover:text-blue-800 flex-shrink-0 px-2 py-1 bg-white rounded-md border border-slate-200 shadow-xs">
                     <span id="modalCopyBtnText">Copy</span>
                 </button>
@@ -553,7 +584,7 @@ function closeImageModal() {
             </div>
 
             <div class="my-5 p-4 bg-white rounded-2xl border-2 border-slate-900/10 shadow-lg inline-block">
-                <img src="{{ url_for('shop.shop_qr_image', shop_slug=manager.shop_slug) }}" alt="Store QR Code" class="w-56 h-56 mx-auto object-contain">
+                <img src="{{ url_for('shop.shop_qr_image', shop_slug=manager.shop_slug) }}" id="standeeShopQrImg" alt="Store QR Code" class="w-56 h-56 mx-auto object-contain">
             </div>
 
             <div class="space-y-2 mt-2">
@@ -564,7 +595,7 @@ function closeImageModal() {
                     <span>&bull;</span>
                     <span>🛍️ 3. Order</span>
                 </div>
-                <p class="text-[11px] font-mono text-slate-400 truncate">{{ shop_url }}</p>
+                <p class="text-[11px] font-mono text-slate-400 truncate" id="standeeStoreUrl">{{ shop_url }}</p>
             </div>
         </div>
 

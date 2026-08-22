@@ -36,10 +36,10 @@
                         <h3 class="font-semibold text-slate-800 text-sm leading-tight line-clamp-1">{{ item.name }}</h3>
                         <p class="font-bold text-slate-900 text-sm mt-1">₹{{ "{:,.0f}".format(item.price_inr) }}</p>
                     </div>
-                    <div class="flex items-center gap-2 bg-slate-100 rounded-lg p-1">
-                        <button onclick="updateCart({{ item.product_id }}, 'decrease')" class="w-7 h-7 flex items-center justify-center rounded bg-white shadow-sm hover:bg-slate-50 text-slate-600 font-bold">-</button>
-                        <span class="text-sm font-semibold w-4 text-center">{{ item.quantity }}</span>
-                        <button onclick="updateCart({{ item.product_id }}, 'increase')" class="w-7 h-7 flex items-center justify-center rounded bg-white shadow-sm hover:bg-slate-50 text-slate-600 font-bold">+</button>
+                    <div class="flex items-center gap-1.5 bg-slate-100 rounded-xl p-1 border border-slate-200/80 shadow-2xs">
+                        <button onclick="updateCart({{ item.product_id }}, 'decrease')" class="w-8 h-8 flex items-center justify-center rounded-lg bg-white shadow-xs hover:bg-slate-50 text-slate-800 font-extrabold text-base transition-transform active:scale-90 cursor-pointer border border-slate-200/50">−</button>
+                        <span class="text-sm font-bold w-6 text-center text-slate-900 select-none">{{ item.quantity }}</span>
+                        <button onclick="updateCart({{ item.product_id }}, 'increase')" class="w-8 h-8 flex items-center justify-center rounded-lg bg-white shadow-xs hover:bg-slate-50 text-slate-800 font-extrabold text-base transition-transform active:scale-90 cursor-pointer border border-slate-200/50">+</button>
                     </div>
                 </div>
                 {% endfor %}

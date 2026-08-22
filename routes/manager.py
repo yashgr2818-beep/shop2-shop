@@ -16,7 +16,7 @@ from services.upload_service import (
     process_csv_upload, process_image_upload,
     generate_next_sku, upload_product_image_file
 )
-from services.qr_service import get_shop_base_url, get_local_ip, generate_shop_qr, parse_user_agent
+from services.qr_service import get_shop_base_url, get_local_ip, parse_user_agent
 
 bp = Blueprint('manager', __name__, url_prefix='/manager')
 
@@ -312,16 +312,11 @@ def dashboard():
         session.clear()
         return redirect(url_for('manager.login'))
 
-    products = db.execute(
-        'SELECT * FROM tbl_products WHERE manager_id = ? ORDER BY product_id DESC', (manager_id,)
-    ).fetchall()
-
     shop_base_url = get_shop_base_url(request)
     shop_url  = f"{shop_base_url}/shop/{manager['shop_slug']}"
     scan_url  = f"{shop_base_url}/scan/{manager['shop_slug']}"
 
-    # Synchronize QR code file with active host/domain and Cloudinary
-    qr_filename = f"{manager['shop_slug']}.png"
+    # Only generate/sync QR if not yet uploaded to Cloudinary (one-time cost per shop)
     if not manager.get('qr_image_url'):
         try:
             from services.upload_service import upload_shop_qr_to_cloudinary
@@ -332,15 +327,21 @@ def dashboard():
                 manager = db.execute('SELECT * FROM tbl_managers WHERE manager_id = ?', (manager_id,)).fetchone()
         except Exception:
             pass
-    try:
-        generate_shop_qr(manager['shop_slug'], current_app.config['QR_FOLDER'], shop_base_url)
-    except Exception:
-        pass
 
-    # Analytics — combined into a single query for visitor session stats
     now_str = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
     today   = datetime.utcnow().strftime('%Y-%m-%d')
 
+    # Single combined query: products + pending orders + visitor stats + low stock
+    products = db.execute(
+        'SELECT * FROM tbl_products WHERE manager_id = ? ORDER BY product_id DESC', (manager_id,)
+    ).fetchall()
+
+    pending_orders = db.execute(
+        "SELECT COUNT(*) as cnt FROM tbl_orders WHERE manager_id = ? AND status = 'Pending'",
+        (manager_id,)
+    ).fetchone()['cnt']
+
+    # Visitor stats + recent scans in two optimised queries
     visitor_stats = db.execute('''
         SELECT
             COUNT(*) AS total_scans,
@@ -355,7 +356,7 @@ def dashboard():
     today_scans     = visitor_stats['today_scans']    or 0
 
     raw_scans = db.execute('''
-        SELECT visit_id, session_token, ip_address, user_agent, created_at, expires_at,
+        SELECT visit_id, session_token, ip_address, user_agent, created_at,
                CASE WHEN expires_at > ? THEN 'Active' ELSE 'Expired' END as status
         FROM tbl_visitor_sessions
         WHERE manager_id = ?
@@ -377,11 +378,6 @@ def dashboard():
         "WHERE manager_id = ? AND stock_qty <= 5 AND status = 'Active' ORDER BY stock_qty ASC",
         (manager_id,)
     ).fetchall()
-
-    pending_orders = db.execute(
-        "SELECT COUNT(*) as cnt FROM tbl_orders WHERE manager_id = ? AND status = 'Pending'",
-        (manager_id,)
-    ).fetchone()['cnt']
 
     return render_template(
         'manager/dashboard.html',
@@ -982,25 +978,37 @@ def reports():
         ORDER BY view_count DESC LIMIT 5
     ''', (manager_id,)).fetchall()
 
+    # Optimised: replaces 3N correlated subqueries with 3 pre-aggregated LEFT JOINs
     product_performance = db.execute('''
         SELECT
             p.product_id, p.name, p.image_path,
-            (SELECT COUNT(*) FROM tbl_product_views WHERE product_id = p.product_id) as total_views,
-            COALESCE((SELECT SUM(quantity) FROM tbl_cart_items WHERE product_id = p.product_id), 0) as in_carts,
-            COALESCE((
-                SELECT SUM(oi.quantity) FROM tbl_order_items oi
-                JOIN tbl_orders o ON oi.order_id = o.order_id
-                WHERE oi.product_id = p.product_id AND o.status != 'Cancelled'
-            ), 0) as total_ordered,
-            COALESCE((
-                SELECT SUM(oi.quantity) FROM tbl_order_items oi
-                JOIN tbl_orders o ON oi.order_id = o.order_id
-                WHERE oi.product_id = p.product_id AND o.status = 'Completed'
-            ), 0) as total_completed
+            COALESCE(v.total_views, 0)     AS total_views,
+            COALESCE(c.in_carts, 0)        AS in_carts,
+            COALESCE(ord.total_ordered, 0) AS total_ordered,
+            COALESCE(ord.total_completed, 0) AS total_completed
         FROM tbl_products p
+        LEFT JOIN (
+            SELECT product_id, COUNT(*) AS total_views
+            FROM tbl_product_views
+            GROUP BY product_id
+        ) v ON v.product_id = p.product_id
+        LEFT JOIN (
+            SELECT product_id, SUM(quantity) AS in_carts
+            FROM tbl_cart_items
+            GROUP BY product_id
+        ) c ON c.product_id = p.product_id
+        LEFT JOIN (
+            SELECT oi.product_id,
+                   SUM(CASE WHEN o.status != 'Cancelled' THEN oi.quantity ELSE 0 END) AS total_ordered,
+                   SUM(CASE WHEN o.status = 'Completed'  THEN oi.quantity ELSE 0 END) AS total_completed
+            FROM tbl_order_items oi
+            JOIN tbl_orders o ON oi.order_id = o.order_id
+            WHERE o.manager_id = ?
+            GROUP BY oi.product_id
+        ) ord ON ord.product_id = p.product_id
         WHERE p.manager_id = ?
         ORDER BY total_views DESC, total_ordered DESC
-    ''', (manager_id,)).fetchall()
+    ''', (manager_id, manager_id)).fetchall()
 
     # QR Scan Analytics & Visitor Sessions for Sales & Activity Reports
     now_str = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
@@ -1062,20 +1070,32 @@ def bulk_stock():
     manager = db.execute('SELECT * FROM tbl_managers WHERE manager_id = ?', (manager_id,)).fetchone()
 
     if request.method == 'POST':
+        # Save All Changes: process all entered Quick Adjust (adj_*) deltas simultaneously
+        updates = []
         for key, value in request.form.items():
-            if key.startswith('stock_'):
-                product_id = key.replace('stock_', '')
-                try:
-                    new_qty = int(value)
-                    if new_qty >= 0:
-                        db.execute(
-                            'UPDATE tbl_products SET stock_qty = ? WHERE product_id = ? AND manager_id = ?',
-                            (new_qty, product_id, manager_id)
-                        )
-                except ValueError:
-                    pass
-        db.commit()
-        flash('Inventory updated successfully.', 'success')
+            if not key.startswith('adj_'):
+                continue
+            val_str = (value or '').strip()
+            if not val_str:
+                continue
+            product_id = key[len('adj_'):]
+            try:
+                delta = int(val_str.replace('+', ''))
+                if delta != 0:
+                    updates.append((delta, product_id, manager_id))
+            except ValueError:
+                pass
+
+        if updates:
+            for delta, product_id, m_id in updates:
+                db.execute(
+                    'UPDATE tbl_products SET stock_qty = MAX(0, stock_qty + ?) WHERE product_id = ? AND manager_id = ?',
+                    (delta, product_id, m_id)
+                )
+            db.commit()
+            flash(f'Inventory updated — {len(updates)} product(s) adjusted successfully.', 'success')
+        else:
+            flash('No stock adjustments were entered to save.', 'info')
         return redirect(url_for('manager.bulk_stock'))
 
     products = db.execute(
