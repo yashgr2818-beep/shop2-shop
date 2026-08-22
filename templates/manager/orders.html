@@ -1,116 +1,345 @@
 {% extends 'base.html' %}
-{% block title %}Orders - {{ manager.shop_name }}{% endblock %}
+{% block title %}Orders & Customers - {{ manager.shop_name }}{% endblock %}
 
 {% block content %}
-<div class="mb-8">
-    <h1 class="text-3xl font-bold text-slate-800">Orders</h1>
-    <p class="text-slate-500 mt-1">Manage your customer orders and update their status.</p>
-</div>
+<div class="max-w-7xl mx-auto px-4 py-6 space-y-6">
 
-<div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-    <div class="overflow-x-auto">
-        <table class="min-w-full divide-y divide-slate-200">
-            <thead class="bg-slate-50">
-                <tr>
-                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Order ID</th>
-                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Customer</th>
-                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Total</th>
-                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Status</th>
-                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Payment</th>
-                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Actions</th>
-                </tr>
-            </thead>
-            <tbody class="bg-white divide-y divide-slate-200">
-                {% for data in orders_data %}
-                <tr>
-                    <td class="px-6 py-4 whitespace-nowrap">
-                        <div class="text-sm font-medium text-slate-900">#{{ data.order.order_id }}</div>
-                        <div class="text-xs text-slate-500">{{ data.order.created_at }}</div>
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap">
-                        <div class="text-sm text-slate-900 font-semibold">{{ data.order.customer_name }}</div>
-                        <div class="text-sm text-slate-500">{{ data.order.customer_phone }}</div>
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-900 font-bold">
-                        ₹{{ "{:,.0f}".format(data.order.total_amount or 0) }}
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap">
-                        {% if data.order.status == 'Pending' %}
-                            <span class="px-2.5 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-amber-100 text-amber-800">⏳ Pending</span>
-                        {% elif data.order.status == 'Packed' %}
-                            <span class="px-2.5 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">📦 Packed</span>
-                        {% elif data.order.status == 'Completed' or data.order.status == 'Delivered' %}
-                            <span class="px-2.5 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-emerald-100 text-emerald-800">✅ Delivered</span>
-                        {% else %}
-                            <span class="px-2.5 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">❌ Cancelled</span>
-                        {% endif %}
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap">
-                        {% if data.order.payment_status == 'Paid' %}
-                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Paid</span>
-                        {% else %}
-                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-slate-100 text-slate-800">Unpaid</span>
-                        {% endif %}
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                        <button onclick="openOrderModal({{ data.order.order_id }}, '{{ data.order.status }}', '{{ data.order.payment_status }}')" class="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-xs font-bold hover:bg-slate-800 transition">Update</button>
-                        <button onclick="toggleDetails('details-{{ data.order.order_id }}')" class="px-3 py-1.5 bg-slate-100 text-slate-700 rounded-lg text-xs font-bold hover:bg-slate-200 transition">Details</button>
-                    </td>
-                </tr>
-                <tr id="details-{{ data.order.order_id }}" class="hidden bg-slate-50">
-                    <td colspan="6" class="px-6 py-4 space-y-3">
-                        <h4 class="text-xs font-bold text-slate-700 uppercase tracking-wider">Order Items & WhatsApp Alerts:</h4>
-                        <ul class="text-sm text-slate-600 space-y-1">
-                            {% for item in data.order_items %}
-                                <li class="flex items-center justify-between border-b border-slate-200/60 pb-1">
-                                    <span>• {{ item.quantity }}x {{ item.name }} (₹{{ "{:,.0f}".format(item.price_at_time or 0) }} each)</span>
-                                    <span class="text-xs font-mono text-slate-500 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-md">Available Stock: <strong class="text-slate-800">{{ item.stock_qty }}</strong> | Packed: <strong class="text-blue-600">{{ item.packed_qty }}</strong></span>
-                                </li>
-                            {% endfor %}
-                        </ul>
-
-                        <!-- WhatsApp Lifecycle Actions -->
-                        <div class="pt-2 flex flex-wrap gap-2">
-                            {% if data.wa_packed_link != '#' %}
-                            <a href="{{ data.wa_packed_link }}" target="_blank" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 transition">
-                                💬 WhatsApp "Order Packed"
-                            </a>
-                            <a href="{{ data.wa_delivered_link }}" target="_blank" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-bold hover:bg-blue-700 transition">
-                                💬 WhatsApp "Order Delivered"
-                            </a>
-                            <a href="{{ data.wa_cancelled_link }}" target="_blank" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-700 text-white rounded-lg text-xs font-bold hover:bg-slate-800 transition">
-                                💬 WhatsApp "Order Cancelled"
-                            </a>
-                            {% endif %}
-                        </div>
-                    </td>
-                </tr>
-                {% else %}
-                <tr>
-                    <td colspan="6" class="px-6 py-10 text-center text-slate-500">
-                        No orders found.
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+    <!-- Header -->
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-slate-900 text-white p-6 sm:p-8 rounded-3xl shadow-xl">
+        <div>
+            <div class="flex items-center gap-2.5 mb-1">
+                <span class="text-2xl">📦</span>
+                <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight">Orders & Customer Management</h1>
+            </div>
+            <p class="text-slate-400 text-sm">View store orders normally in chronological order or grouped customer-wise with full purchase histories.</p>
+        </div>
+        <div class="flex items-center gap-3">
+            <a href="{{ url_for('manager.dashboard') }}" class="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-xs font-bold text-slate-200 transition">
+                ← Store Dashboard
+            </a>
+        </div>
     </div>
+
+    <!-- Summary KPIs -->
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div class="bg-white rounded-2xl p-5 shadow-xs border border-slate-200/80">
+            <p class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">📦 Total Orders</p>
+            <p class="text-3xl font-extrabold text-slate-900">{{ orders_data|length }}</p>
+            <p class="text-[11px] text-blue-600 font-semibold mt-1">All time</p>
+        </div>
+        <div class="bg-white rounded-2xl p-5 shadow-xs border border-slate-200/80">
+            <p class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">👤 Unique Customers</p>
+            <p class="text-3xl font-extrabold text-indigo-600">{{ customer_groups|length }}</p>
+            <p class="text-[11px] text-slate-400 font-medium mt-1">Ordering customers</p>
+        </div>
+        <div class="bg-white rounded-2xl p-5 shadow-xs border border-slate-200/80">
+            <p class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">💰 Store Revenue</p>
+            <p class="text-3xl font-extrabold text-emerald-600">
+                ₹{{ "{:,.0f}".format(customer_groups|map(attribute='total_spent')|sum|default(0)) }}
+            </p>
+            <p class="text-[11px] text-slate-400 font-medium mt-1">Excl. cancelled</p>
+        </div>
+        <div class="bg-white rounded-2xl p-5 shadow-xs border border-slate-200/80">
+            <p class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">⏳ Pending Orders</p>
+            <p class="text-3xl font-extrabold text-amber-600">
+                {{ orders_data|selectattr('order.status', 'equalto', 'Pending')|list|length }}
+            </p>
+            <p class="text-[11px] text-amber-500 font-medium mt-1">Needs packing/dispatch</p>
+        </div>
+    </div>
+
+    <!-- Toolbar: View Switcher & Live Search -->
+    <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200/80 shadow-xs">
+        <!-- View Mode Switcher -->
+        <div class="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl">
+            <button type="button" onclick="switchOrderView('normal')" id="btnView_normal"
+                class="view-tab-btn px-4 py-2 rounded-lg text-xs font-bold bg-slate-900 text-white shadow-xs transition-all cursor-pointer">
+                📋 All Orders (Normal View)
+            </button>
+            <button type="button" onclick="switchOrderView('customer')" id="btnView_customer"
+                class="view-tab-btn px-4 py-2 rounded-lg text-xs font-bold text-slate-600 hover:text-slate-900 transition-all cursor-pointer">
+                👤 Customer-Wise View ({{ customer_groups|length }})
+            </button>
+        </div>
+
+        <!-- Search Bar -->
+        <div class="relative min-w-[280px]">
+            <input type="text" id="orderSearchInput" oninput="filterOrders()" placeholder="🔍 Search customer name, phone, order #..."
+                class="w-full pl-3.5 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-slate-900 focus:bg-white transition">
+            <button onclick="document.getElementById('orderSearchInput').value=''; filterOrders();" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs">✕</button>
+        </div>
+    </div>
+
+    <!-- ==========================================
+         VIEW 1: NORMAL CHRONOLOGICAL VIEW (ALL ORDERS)
+         ========================================== -->
+    <div id="viewSection_normal" class="order-view-panel bg-white rounded-3xl shadow-xs border border-slate-200 overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/50">
+            <h3 class="font-bold text-sm text-slate-800">All Store Orders (Chronological)</h3>
+            <span class="text-xs text-slate-500 font-medium">{{ orders_data|length }} total orders</span>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="min-w-full text-left text-xs" id="normalOrdersTable">
+                <thead class="bg-slate-100/80 text-slate-500 font-bold uppercase tracking-wider">
+                    <tr>
+                        <th class="py-3 px-4">Order ID</th>
+                        <th class="py-3 px-4">Customer Details</th>
+                        <th class="py-3 px-4">Items Summary</th>
+                        <th class="py-3 px-4 text-right">Total Amount</th>
+                        <th class="py-3 px-4 text-center">Status</th>
+                        <th class="py-3 px-4 text-center">Payment</th>
+                        <th class="py-3 px-4 text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 bg-white">
+                    {% for data in orders_data %}
+                    <tr class="order-row hover:bg-slate-50/80 transition"
+                        data-search="{{ data.order.order_id }} {{ data.order.customer_name }} {{ data.order.customer_phone }} {{ data.order.customer_email }}">
+                        <td class="py-3.5 px-4 font-mono">
+                            <div class="font-bold text-slate-900 text-sm">#{{ data.order.order_id }}</div>
+                            <div class="text-[10px] text-slate-400 mt-0.5">{{ data.order.created_at }}</div>
+                        </td>
+                        <td class="py-3.5 px-4">
+                            <div class="font-bold text-slate-900 text-sm">{{ data.order.customer_name }}</div>
+                            {% if data.order.customer_phone %}
+                            <div class="text-[11px] font-mono text-emerald-700 font-bold mt-0.5">
+                                <a href="https://wa.me/{{ data.order.customer_phone }}" target="_blank" class="hover:underline flex items-center gap-1">
+                                    <span>💬</span> {{ data.order.customer_phone }}
+                                </a>
+                            </div>
+                            {% endif %}
+                            {% if data.order.customer_email %}
+                            <div class="text-[10px] text-slate-400">{{ data.order.customer_email }}</div>
+                            {% endif %}
+                        </td>
+                        <td class="py-3.5 px-4">
+                            <div class="space-y-1 max-w-[220px]">
+                                {% for item in data.order_items %}
+                                <div class="text-[11px] text-slate-700 flex items-center justify-between gap-2">
+                                    <span class="truncate">• {{ item.name }}</span>
+                                    <span class="font-mono font-bold text-slate-500 shrink-0">x{{ item.quantity }}</span>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </td>
+                        <td class="py-3.5 px-4 text-right font-bold text-slate-900 font-mono text-sm">
+                            ₹{{ "{:,.0f}".format(data.order.total_amount or 0) }}
+                        </td>
+                        <td class="py-3.5 px-4 text-center">
+                            {% if data.order.status == 'Pending' %}
+                                <span class="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-amber-100 text-amber-800">⏳ Pending</span>
+                            {% elif data.order.status == 'Packed' %}
+                                <span class="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-blue-100 text-blue-800">📦 Packed</span>
+                            {% elif data.order.status == 'Completed' or data.order.status == 'Delivered' %}
+                                <span class="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800">✅ Delivered</span>
+                            {% else %}
+                                <span class="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-rose-100 text-rose-800">❌ Cancelled</span>
+                            {% endif %}
+                        </td>
+                        <td class="py-3.5 px-4 text-center">
+                            {% if data.order.payment_status == 'Paid' %}
+                                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">Paid</span>
+                            {% else %}
+                                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600">Unpaid</span>
+                            {% endif %}
+                        </td>
+                        <td class="py-3.5 px-4 text-right space-x-1.5 whitespace-nowrap">
+                            <button onclick="openOrderModal({{ data.order.order_id }}, '{{ data.order.status }}', '{{ data.order.payment_status }}')"
+                                class="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition cursor-pointer shadow-2xs">
+                                Update
+                            </button>
+                            <button onclick="toggleDetails('details-{{ data.order.order_id }}')"
+                                class="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition cursor-pointer">
+                                Items & WhatsApp ▼
+                            </button>
+                        </td>
+                    </tr>
+                    <!-- Expandable Item Breakdown & WhatsApp Actions -->
+                    <tr id="details-{{ data.order.order_id }}" class="hidden bg-slate-50/90">
+                        <td colspan="7" class="px-6 py-4 space-y-3">
+                            <div class="bg-white p-4 rounded-xl border border-slate-200 space-y-3">
+                                <h4 class="text-xs font-bold text-slate-700 uppercase tracking-wider">Order Items Details:</h4>
+                                <ul class="text-xs text-slate-600 space-y-1.5 divide-y divide-slate-100">
+                                    {% for item in data.order_items %}
+                                    <li class="flex items-center justify-between pt-1">
+                                        <span>• <strong>{{ item.quantity }}x</strong> {{ item.name }} (₹{{ "{:,.0f}".format(item.price_at_time or 0) }} each)</span>
+                                        <span class="text-[10px] font-mono text-slate-500 bg-slate-100 px-2 py-0.5 rounded">Stock: {{ item.stock_qty }} | Packed: {{ item.packed_qty }}</span>
+                                    </li>
+                                    {% endfor %}
+                                </ul>
+
+                                <!-- WhatsApp Alerts -->
+                                <div class="pt-2 flex flex-wrap gap-2 border-t border-slate-100">
+                                    {% if data.wa_packed_link != '#' %}
+                                    <a href="{{ data.wa_packed_link }}" target="_blank" class="inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition">
+                                        💬 WhatsApp "Order Packed"
+                                    </a>
+                                    <a href="{{ data.wa_delivered_link }}" target="_blank" class="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition">
+                                        💬 WhatsApp "Order Delivered"
+                                    </a>
+                                    <a href="{{ data.wa_cancelled_link }}" target="_blank" class="inline-flex items-center gap-1 px-3 py-1.5 bg-slate-700 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition">
+                                        💬 WhatsApp "Order Cancelled"
+                                    </a>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="px-6 py-10 text-center text-slate-400">
+                            No orders found for this store yet.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ==========================================
+         VIEW 2: CUSTOMER-WISE GROUPED VIEW
+         ========================================== -->
+    <div id="viewSection_customer" class="order-view-panel hidden space-y-4">
+        <div class="flex items-center justify-between">
+            <h3 class="font-bold text-base text-slate-800">Orders Grouped by Customer (Customer-Wise)</h3>
+            <span class="text-xs text-slate-500 font-medium">{{ customer_groups|length }} unique customers</span>
+        </div>
+
+        <div class="space-y-4" id="customerGroupsContainer">
+            {% for cg in customer_groups %}
+            <div class="customer-card bg-white rounded-3xl p-5 shadow-xs border border-slate-200/90 space-y-4 transition"
+                data-search="{{ cg.customer_name }} {{ cg.customer_phone }} {{ cg.customer_email }}">
+                
+                <!-- Customer Header (Clickable to toggle past orders) -->
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 cursor-pointer select-none"
+                    onclick="toggleCustomerOrders('cust-orders-{{ loop.index }}')">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-2xl bg-indigo-100 text-indigo-700 flex items-center justify-center font-extrabold text-sm">
+                            {{ cg.customer_name[:1].upper() }}
+                        </div>
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <h4 class="font-extrabold text-slate-900 text-sm sm:text-base">{{ cg.customer_name }}</h4>
+                                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                    {{ cg.total_orders }} Order{{ 's' if cg.total_orders != 1 else '' }}
+                                </span>
+                            </div>
+                            <div class="flex flex-wrap items-center gap-3 text-xs text-slate-500 mt-0.5">
+                                {% if cg.customer_phone %}
+                                <a href="https://wa.me/{{ cg.customer_phone }}" target="_blank" onclick="event.stopPropagation()" class="font-mono font-bold text-emerald-700 hover:underline flex items-center gap-1">
+                                    <span>💬</span> {{ cg.customer_phone }}
+                                </a>
+                                {% endif %}
+                                {% if cg.customer_email %}
+                                <span>📧 {{ cg.customer_email }}</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right KPIs for this customer -->
+                    <div class="flex items-center gap-4 text-right">
+                        <div>
+                            <div class="text-[10px] font-bold uppercase text-slate-400">Total Spent</div>
+                            <div class="text-base font-extrabold text-slate-900 font-mono">₹{{ "{:,.0f}".format(cg.total_spent) }}</div>
+                        </div>
+                        <div>
+                            <div class="text-[10px] font-bold uppercase text-slate-400">Last Order</div>
+                            <div class="text-xs text-slate-600 font-mono">{{ cg.latest_order_date[:10] if cg.latest_order_date else 'N/A' }}</div>
+                        </div>
+                        <button type="button" class="px-3 py-1.5 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 text-xs font-bold flex items-center gap-1 transition">
+                            <span>View Orders</span>
+                            <span class="text-[10px]">▼</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Customer's Past Orders Accordion Content -->
+                <div id="cust-orders-{{ loop.index }}" class="pt-3 border-t border-slate-100 space-y-3">
+                    <div class="text-xs font-bold text-slate-600 uppercase tracking-wider">
+                        Order History for {{ cg.customer_name }} ({{ cg.orders|length }} total):
+                    </div>
+                    
+                    <div class="overflow-x-auto rounded-2xl border border-slate-200">
+                        <table class="min-w-full text-left text-xs bg-slate-50/50">
+                            <thead class="bg-slate-100 text-slate-500 font-bold uppercase text-[10px]">
+                                <tr>
+                                    <th class="py-2.5 px-3">Order ID & Date</th>
+                                    <th class="py-2.5 px-3">Items Purchased</th>
+                                    <th class="py-2.5 px-3 text-right">Amount</th>
+                                    <th class="py-2.5 px-3 text-center">Status</th>
+                                    <th class="py-2.5 px-3 text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100 bg-white">
+                                {% for data in cg.orders %}
+                                <tr class="hover:bg-slate-50 transition">
+                                    <td class="py-3 px-3 font-mono">
+                                        <span class="font-bold text-slate-900 text-xs">#{{ data.order.order_id }}</span>
+                                        <div class="text-[10px] text-slate-400">{{ data.order.created_at }}</div>
+                                    </td>
+                                    <td class="py-3 px-3">
+                                        <div class="space-y-0.5 max-w-[260px]">
+                                            {% for item in data.order_items %}
+                                            <div class="text-[11px] text-slate-700">• {{ item.name }} (x{{ item.quantity }}) - ₹{{ "{:,.0f}".format(item.price_at_time or 0) }}</div>
+                                            {% endfor %}
+                                        </div>
+                                    </td>
+                                    <td class="py-3 px-3 text-right font-bold text-slate-900 font-mono">
+                                        ₹{{ "{:,.0f}".format(data.order.total_amount or 0) }}
+                                    </td>
+                                    <td class="py-3 px-3 text-center">
+                                        {% if data.order.status == 'Pending' %}
+                                            <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-100 text-amber-800">⏳ Pending</span>
+                                        {% elif data.order.status == 'Packed' %}
+                                            <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-100 text-blue-800">📦 Packed</span>
+                                        {% elif data.order.status == 'Completed' or data.order.status == 'Delivered' %}
+                                            <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800">✅ Delivered</span>
+                                        {% else %}
+                                            <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-100 text-rose-800">❌ Cancelled</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="py-3 px-3 text-right space-x-1 whitespace-nowrap">
+                                        <button onclick="openOrderModal({{ data.order.order_id }}, '{{ data.order.status }}', '{{ data.order.payment_status }}')"
+                                            class="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-[11px] font-bold transition cursor-pointer">
+                                            Update
+                                        </button>
+                                        {% if data.wa_packed_link != '#' %}
+                                        <a href="{{ data.wa_packed_link }}" target="_blank" class="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg text-[11px] font-bold transition inline-block">
+                                            💬 WhatsApp
+                                        </a>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <div class="bg-white rounded-3xl p-10 text-center text-slate-400 border border-slate-200">
+                No customer order records found.
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
 </div>
 
 <!-- Update Status Modal -->
 <div id="statusModal" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+    <div class="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden border border-slate-200">
         <div class="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50">
-            <h3 class="text-lg font-bold text-slate-800">Update Order Status</h3>
-            <button onclick="closeOrderModal()" class="text-slate-400 hover:text-slate-600">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-            </button>
+            <h3 class="text-base font-extrabold text-slate-900">Update Order Status</h3>
+            <button onclick="closeOrderModal()" class="text-slate-400 hover:text-slate-600 font-bold text-lg cursor-pointer">✕</button>
         </div>
         <form action="{{ url_for('manager.update_order_status') }}" method="POST" class="p-6 space-y-4">
             <input type="hidden" name="order_id" id="modal_order_id">
             
             <div>
-                <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Order Lifecycle Status</label>
+                <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Order Status</label>
                 <select name="status" id="modal_status" class="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl font-semibold text-sm focus:ring-2 focus:ring-slate-900 focus:outline-none">
                     <option value="Pending">⏳ Pending</option>
                     <option value="Packed">📦 Packed (Reserve Stock)</option>
@@ -128,21 +357,40 @@
             </div>
             
             <div class="pt-4 flex justify-end gap-3">
-                <button type="button" onclick="closeOrderModal()" class="px-4 py-2 border border-slate-300 rounded-xl text-slate-700 hover:bg-slate-50 font-semibold text-sm">Cancel</button>
-                <button type="submit" class="px-5 py-2 bg-slate-900 text-white rounded-xl hover:bg-slate-800 font-bold text-sm shadow-sm">Save Changes</button>
+                <button type="button" onclick="closeOrderModal()" class="px-4 py-2 border border-slate-300 rounded-xl text-slate-700 hover:bg-slate-50 font-semibold text-xs transition cursor-pointer">Cancel</button>
+                <button type="submit" class="px-5 py-2 bg-slate-900 text-white rounded-xl hover:bg-slate-800 font-bold text-xs shadow-sm transition cursor-pointer">Save Changes</button>
             </div>
         </form>
     </div>
 </div>
 
 <script>
+    function switchOrderView(viewType) {
+        document.querySelectorAll('.order-view-panel').forEach(p => p.classList.add('hidden'));
+        document.querySelectorAll('.view-tab-btn').forEach(btn => {
+            btn.classList.remove('bg-slate-900', 'text-white', 'shadow-xs');
+            btn.classList.add('text-slate-600');
+        });
+
+        const activePanel = document.getElementById(`viewSection_${viewType}`);
+        const activeBtn = document.getElementById(`btnView_${viewType}`);
+        if (activePanel) activePanel.classList.remove('hidden');
+        if (activeBtn) {
+            activeBtn.classList.add('bg-slate-900', 'text-white', 'shadow-xs');
+            activeBtn.classList.remove('text-slate-600');
+        }
+
+        filterOrders();
+    }
+
     function toggleDetails(id) {
         const el = document.getElementById(id);
-        if (el.classList.contains('hidden')) {
-            el.classList.remove('hidden');
-        } else {
-            el.classList.add('hidden');
-        }
+        if (el) el.classList.toggle('hidden');
+    }
+
+    function toggleCustomerOrders(id) {
+        const el = document.getElementById(id);
+        if (el) el.classList.toggle('hidden');
     }
     
     function openOrderModal(orderId, currentStatus, currentPayment) {
@@ -154,6 +402,22 @@
     
     function closeOrderModal() {
         document.getElementById('statusModal').classList.add('hidden');
+    }
+
+    function filterOrders() {
+        const query = (document.getElementById('orderSearchInput').value || '').trim().toLowerCase();
+        
+        // Filter normal view rows
+        document.querySelectorAll('#normalOrdersTable .order-row').forEach(row => {
+            const data = (row.getAttribute('data-search') || '').toLowerCase();
+            row.style.display = (!query || data.includes(query)) ? '' : 'none';
+        });
+
+        // Filter customer cards
+        document.querySelectorAll('#customerGroupsContainer .customer-card').forEach(card => {
+            const data = (card.getAttribute('data-search') || '').toLowerCase();
+            card.style.display = (!query || data.includes(query)) ? '' : 'none';
+        });
     }
 </script>
 {% endblock %}

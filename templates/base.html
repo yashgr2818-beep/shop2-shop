@@ -48,11 +48,13 @@
                                 {% else %}
                                     <a href="{{ url_for('manager.dashboard') }}" class="text-slate-600 hover:text-slate-900 px-3 py-2 rounded-xl text-xs font-bold transition {% if request.endpoint == 'manager.dashboard' %}bg-slate-100 text-slate-900{% endif %}">Dashboard</a>
                                     <a href="{{ url_for('manager.orders') }}" class="text-slate-600 hover:text-slate-900 px-3 py-2 rounded-xl text-xs font-bold transition {% if request.endpoint == 'manager.orders' %}bg-slate-100 text-slate-900{% endif %}">Orders</a>
+                                    <a href="{{ url_for('manager.customers') }}" class="text-slate-600 hover:text-slate-900 px-3 py-2 rounded-xl text-xs font-bold transition {% if request.endpoint == 'manager.customers' %}bg-slate-100 text-slate-900{% endif %}">Customers</a>
                                     <a href="{{ url_for('manager.bulk_stock') }}" class="text-slate-600 hover:text-slate-900 px-3 py-2 rounded-xl text-xs font-bold transition {% if request.endpoint == 'manager.bulk_stock' %}bg-slate-100 text-slate-900{% endif %}">Stock</a>
                                 {% endif %}
                             {% else %}
                                 <a href="{{ url_for('manager.dashboard') }}" class="text-slate-600 hover:text-slate-900 px-3 py-2 rounded-xl text-xs font-bold transition {% if request.endpoint == 'manager.dashboard' %}bg-slate-100 text-slate-900{% endif %}">Dashboard</a>
                                 <a href="{{ url_for('manager.orders') }}" class="text-slate-600 hover:text-slate-900 px-3 py-2 rounded-xl text-xs font-bold transition {% if request.endpoint == 'manager.orders' %}bg-slate-100 text-slate-900{% endif %}">Orders</a>
+                                <a href="{{ url_for('manager.customers') }}" class="text-slate-600 hover:text-slate-900 px-3 py-2 rounded-xl text-xs font-bold transition {% if request.endpoint == 'manager.customers' %}bg-slate-100 text-slate-900{% endif %}">Customers</a>
                                 <a href="{{ url_for('manager.bulk_stock') }}" class="text-slate-600 hover:text-slate-900 px-3 py-2 rounded-xl text-xs font-bold transition {% if request.endpoint == 'manager.bulk_stock' %}bg-slate-100 text-slate-900{% endif %}">Stock</a>
                             {% endif %}
 

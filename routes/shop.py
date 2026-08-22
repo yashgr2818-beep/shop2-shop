@@ -14,11 +14,12 @@ from collections import defaultdict
 
 bp = Blueprint('shop', __name__, url_prefix='/shop')
 
-def record_visitor_activity(manager_id, shop_slug, is_scan=False):
-    """Records new visitor scan/visit or refreshes active sliding window (15 mins) with throttling."""
+def record_visitor_activity(manager_id, shop_slug, is_scan=False, visited_url=None):
+    """Records new visitor scan/visit or refreshes active sliding window (15 mins) with exact URL rendering tracking."""
     db = get_db()
     ip_addr = get_client_ip(request)
     user_agent = request.headers.get('User-Agent', '')
+    url_rendered = visited_url or (request.path if request else f"/shop/{shop_slug}")
     now = datetime.utcnow()
     now_ts = now.timestamp()
     expires = (now + timedelta(minutes=15)).strftime('%Y-%m-%d %H:%M:%S')
@@ -29,15 +30,16 @@ def record_visitor_activity(manager_id, shop_slug, is_scan=False):
     last_refresh = session.get(refresh_key, 0)
     
     if existing_token and not is_scan:
-        # Throttle sliding window refresh to once every 2 minutes to prevent DB thrashing
-        if (now_ts - last_refresh) > 120:
+        # Refresh if time expired or user navigated to a different page/url
+        if (now_ts - last_refresh) > 60 or session.get(f"last_url_{shop_slug}") != url_rendered:
             try:
                 db.execute(
-                    "UPDATE tbl_visitor_sessions SET expires_at = ?, ip_address = COALESCE(NULLIF(ip_address, ''), ?) WHERE session_token = ? AND manager_id = ?",
-                    (expires, ip_addr, existing_token, manager_id)
+                    "UPDATE tbl_visitor_sessions SET expires_at = ?, ip_address = COALESCE(NULLIF(ip_address, ''), ?), visited_url = ? WHERE session_token = ? AND manager_id = ?",
+                    (expires, ip_addr, url_rendered, existing_token, manager_id)
                 )
                 db.commit()
                 session[refresh_key] = now_ts
+                session[f"last_url_{shop_slug}"] = url_rendered
             except Exception:
                 pass
     else:
@@ -45,11 +47,12 @@ def record_visitor_activity(manager_id, shop_slug, is_scan=False):
         new_token = uuid.uuid4().hex
         session[session_key] = new_token
         session[refresh_key] = now_ts
+        session[f"last_url_{shop_slug}"] = url_rendered
         try:
             db.execute('''
-                INSERT INTO tbl_visitor_sessions (manager_id, session_token, ip_address, user_agent, expires_at)
-                VALUES (?, ?, ?, ?, ?)
-            ''', (manager_id, new_token, ip_addr, user_agent, expires))
+                INSERT INTO tbl_visitor_sessions (manager_id, session_token, ip_address, user_agent, visited_url, expires_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', (manager_id, new_token, ip_addr, user_agent, url_rendered, expires))
             db.commit()
         except Exception as e:
             print(f"Error logging visitor session: {e}")
@@ -246,6 +249,7 @@ def view_cart(shop_slug):
     if not manager:
         abort(404)
         
+    record_visitor_activity(manager['manager_id'], shop_slug, visited_url=f"/shop/{shop_slug}/cart")
     session_id = get_or_create_customer_session(shop_slug)
     
     cart_items = db.execute('''
@@ -507,6 +511,8 @@ def track_order(shop_slug):
     manager = db.execute('SELECT * FROM tbl_managers WHERE shop_slug=? AND is_suspended=0', (shop_slug,)).fetchone()
     if not manager:
         abort(404)
+
+    record_visitor_activity(manager['manager_id'], shop_slug, visited_url=f"/shop/{shop_slug}/track-order")
 
     auth_phone = session.get(f'customer_auth_{shop_slug}')
     customer_info = None

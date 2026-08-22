@@ -837,7 +837,94 @@ def orders():
             'wa_cancelled_link': _wa(wa_cancelled),
         })
 
-    return render_template('manager/orders.html', manager=manager, orders_data=orders_data)
+    # Group orders customer-wise for manager
+    customers_map = {}
+    for d in orders_data:
+        o = d['order']
+        phone = (o['customer_phone'] or '').strip()
+        name = (o['customer_name'] or 'Guest Customer').strip()
+        email = (o['customer_email'] or '').strip()
+        cust_key = phone if phone else f"name_{name}"
+
+        if cust_key not in customers_map:
+            customers_map[cust_key] = {
+                'customer_name': name,
+                'customer_phone': phone,
+                'customer_email': email,
+                'total_orders': 0,
+                'total_spent': 0.0,
+                'latest_order_date': o['created_at'],
+                'orders': []
+            }
+
+        c_entry = customers_map[cust_key]
+        c_entry['total_orders'] += 1
+        if o['status'] != 'Cancelled':
+            c_entry['total_spent'] += float(o['total_amount'] or 0)
+        if not c_entry['customer_email'] and email:
+            c_entry['customer_email'] = email
+        c_entry['orders'].append(d)
+
+    customer_groups = list(customers_map.values())
+    customer_groups.sort(key=lambda c: c['latest_order_date'] or '', reverse=True)
+
+    return render_template(
+        'manager/orders.html',
+        manager=manager,
+        orders_data=orders_data,
+        customer_groups=customer_groups
+    )
+
+
+# ── Store Customers Directory ────────────────────────────────────────────────
+@bp.route('/customers')
+def customers():
+    manager_id, guard = _require_manager()
+    if guard: return guard
+
+    db = get_db()
+    manager = db.execute('SELECT * FROM tbl_managers WHERE manager_id = ?', (manager_id,)).fetchone()
+
+    registered_customers = db.execute('''
+        SELECT c.*,
+               (SELECT COUNT(*) FROM tbl_orders WHERE manager_id = c.manager_id AND (customer_phone = c.phone_number OR customer_phone LIKE '%' || SUBSTR(c.phone_number, -10))) as order_count,
+               (SELECT COALESCE(SUM(total_amount), 0) FROM tbl_orders WHERE manager_id = c.manager_id AND (customer_phone = c.phone_number OR customer_phone LIKE '%' || SUBSTR(c.phone_number, -10)) AND status != 'Cancelled') as total_spent
+        FROM tbl_customers c
+        WHERE c.manager_id = ?
+        ORDER BY c.customer_id DESC
+    ''', (manager_id,)).fetchall()
+
+    order_rows = db.execute(
+        'SELECT * FROM tbl_orders WHERE manager_id = ? ORDER BY created_at DESC', (manager_id,)
+    ).fetchall()
+
+    order_items_map = defaultdict(list)
+    if order_rows:
+        order_ids = tuple(o['order_id'] for o in order_rows)
+        placeholders = ', '.join(['?'] * len(order_ids))
+        items = db.execute(f'''
+            SELECT oi.*, p.name
+            FROM tbl_order_items oi
+            JOIN tbl_products p ON oi.product_id = p.product_id
+            WHERE oi.order_id IN ({placeholders})
+        ''', order_ids).fetchall()
+        for it in items:
+            order_items_map[it['order_id']].append(it)
+
+    orders_by_customer_phone = defaultdict(list)
+    for o in order_rows:
+        o_dict = dict(o)
+        o_dict['order_items'] = order_items_map.get(o['order_id'], [])
+        phone_key = (o['customer_phone'] or '').strip()[-10:]
+        if phone_key:
+            orders_by_customer_phone[phone_key].append(o_dict)
+
+    return render_template(
+        'manager/customers.html',
+        manager=manager,
+        customers=registered_customers,
+        orders_by_customer=orders_by_customer_phone
+    )
 
 
 

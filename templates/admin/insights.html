@@ -27,10 +27,13 @@
                     <span class="text-white font-bold text-lg">QR Catalog</span>
                     <span class="text-slate-400 text-sm">/ Super Admin</span>
                 </div>
-                <div class="flex items-center space-x-4">
-                    <a href="{{ url_for('admin.dashboard') }}" class="text-slate-300 hover:text-white font-medium text-sm">Dashboard</a>
-                    <a href="{{ url_for('admin.insights') }}" class="text-white font-semibold text-sm border-b-2 border-blue-400 pb-0.5">Insights</a>
-                    <a href="{{ url_for('admin.logout') }}" class="text-red-400 hover:text-red-300 text-sm font-medium transition-colors">Logout</a>
+                <div class="flex items-center space-x-3 sm:space-x-4">
+                    <a href="{{ url_for('admin.dashboard') }}" class="text-slate-400 hover:text-white font-medium text-sm transition-colors">Dashboard</a>
+                    <a href="{{ url_for('admin.orders') }}" class="text-slate-400 hover:text-white font-medium text-sm transition-colors flex items-center gap-1">🛒 Store Orders</a>
+                    <a href="{{ url_for('admin.users') }}" class="text-slate-400 hover:text-white font-medium text-sm transition-colors flex items-center gap-1">👥 Users & Customers</a>
+                    <a href="{{ url_for('admin.security') }}" class="text-emerald-400 hover:text-emerald-300 font-bold text-sm flex items-center gap-1 transition-colors">🛡️ Security & Logs</a>
+                    <a href="{{ url_for('admin.insights') }}" class="text-white font-bold text-sm border-b-2 border-blue-400 pb-0.5">Insights</a>
+                    <a href="{{ url_for('admin.logout') }}" class="text-red-400 hover:text-red-300 text-sm font-medium transition-colors pl-2 border-l border-slate-700">Logout</a>
                 </div>
             </div>
         </div>

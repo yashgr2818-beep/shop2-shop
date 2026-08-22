@@ -3,24 +3,57 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>403 Access Blocked</title>
+    <title>403 - You Are Banned</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
-    <style>body { font-family: 'Inter', sans-serif; }</style>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Outfit', sans-serif; }
+    </style>
 </head>
-<body class="bg-slate-900 text-white min-h-screen flex items-center justify-center p-4">
-    <div class="max-w-md w-full text-center bg-slate-800/80 backdrop-blur-md p-8 rounded-3xl border border-red-500/30 shadow-2xl">
-        <div class="w-20 h-20 bg-red-500/10 text-red-500 rounded-full flex items-center justify-center mx-auto mb-6 text-4xl border border-red-500/20">
-            ⛔
+<body class="bg-slate-950 text-white min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
+
+    <!-- Red Alert Ambient Glow Background -->
+    <div class="absolute -top-40 -left-40 w-96 h-96 bg-red-600/20 rounded-full blur-3xl pointer-events-none"></div>
+    <div class="absolute -bottom-40 -right-40 w-96 h-96 bg-rose-700/20 rounded-full blur-3xl pointer-events-none"></div>
+
+    <div class="max-w-md w-full text-center bg-slate-900/90 backdrop-blur-xl p-8 sm:p-10 rounded-3xl border border-red-500/40 shadow-2xl shadow-red-950/50 relative z-10 space-y-6">
+        
+        <!-- Ban Icon -->
+        <div class="w-24 h-24 bg-red-500/10 text-red-500 rounded-3xl flex items-center justify-center mx-auto text-5xl border border-red-500/30 shadow-inner">
+            🚫
         </div>
-        <h1 class="text-3xl font-extrabold text-white mb-2">Access Restricted</h1>
-        <p class="text-slate-400 text-sm mb-6">
-            Your IP address (<code class="bg-slate-950 text-red-400 px-2 py-0.5 rounded font-mono text-xs">{{ ip_address }}</code>) has been blocked by system administration security controls.
+
+        <div>
+            <div class="inline-block px-3 py-1 bg-red-500/20 text-red-400 border border-red-500/30 rounded-full text-xs font-black uppercase tracking-wider mb-3">
+                Access Denied · Error 403
+            </div>
+            <h1 class="text-3xl sm:text-4xl font-black text-white tracking-tight">You Are Banned</h1>
+            <p class="text-slate-400 text-sm mt-2 leading-relaxed">
+                Your IP address has been blocked from accessing this project.
+            </p>
+        </div>
+
+        <!-- Ban Details Card -->
+        <div class="bg-slate-950/80 p-4 rounded-2xl border border-red-900/40 text-left space-y-2.5 text-xs">
+            <div class="flex items-center justify-between py-1 border-b border-slate-800/80">
+                <span class="text-slate-500 font-bold uppercase tracking-wider text-[10px]">Your IP Address</span>
+                <code class="text-red-400 font-mono font-bold text-xs bg-red-950/60 px-2 py-0.5 rounded border border-red-800/50">{{ ip_address }}</code>
+            </div>
+            <div class="flex items-center justify-between py-1 border-b border-slate-800/80">
+                <span class="text-slate-500 font-bold uppercase tracking-wider text-[10px]">Ban Reason</span>
+                <span class="text-slate-300 font-semibold truncate max-w-[200px]">{{ ban_reason or 'Administrative Security Ban' }}</span>
+            </div>
+            <div class="flex items-center justify-between pt-1">
+                <span class="text-slate-500 font-bold uppercase tracking-wider text-[10px]">Enforcement Status</span>
+                <span class="text-rose-400 font-bold flex items-center gap-1.5">
+                    <span class="w-2 h-2 rounded-full bg-rose-500"></span> Active & Enforced
+                </span>
+            </div>
+        </div>
+
+        <p class="text-[11px] text-slate-500">
+            If you believe this ban is an error, please contact system administration.
         </p>
-        <div class="bg-slate-900/60 p-4 rounded-xl text-xs text-slate-400 border border-slate-700 text-left space-y-1">
-            <p><strong class="text-slate-300">Reason:</strong> Security Policy Violation / IP Blacklist</p>
-            <p><strong class="text-slate-300">Action Required:</strong> Contact system administrator if you believe this is an error.</p>
-        </div>
     </div>
 </body>
 </html>

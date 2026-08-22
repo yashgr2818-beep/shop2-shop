@@ -283,66 +283,88 @@ def get_db():
 
 
 def init_db(app):
-    """Initialize database tables if running local SQLite."""
-    if is_turso_configured(app):
-        return
-
+    """Initialize database tables and column migrations for active database backend."""
     with app.app_context():
         db = get_db()
-        with app.open_resource('schema.sql', mode='r') as f:
-            db.cursor().executescript(f.read())
+        try:
+            with app.open_resource('schema.sql', mode='r') as f:
+                db.cursor().executescript(f.read())
+        except Exception:
+            pass
 
-        # Column migration helpers for existing local databases
-        cursor = db.cursor()
-        cols = [col[1] for col in cursor.execute("PRAGMA table_info(tbl_products)").fetchall()]
-        if 'packed_qty' not in cols:
-            cursor.execute("ALTER TABLE tbl_products ADD COLUMN packed_qty INTEGER DEFAULT 0")
-        if 'show_price' not in cols:
-            cursor.execute("ALTER TABLE tbl_products ADD COLUMN show_price INTEGER DEFAULT 1")
+        # Safe Column migration helpers
+        try:
+            cursor = db.cursor()
+            cols = [col[1] for col in cursor.execute("PRAGMA table_info(tbl_products)").fetchall()]
+            if 'packed_qty' not in cols:
+                try: cursor.execute("ALTER TABLE tbl_products ADD COLUMN packed_qty INTEGER DEFAULT 0")
+                except Exception: pass
+            if 'show_price' not in cols:
+                try: cursor.execute("ALTER TABLE tbl_products ADD COLUMN show_price INTEGER DEFAULT 1")
+                except Exception: pass
 
-        cols_staff = [col[1] for col in cursor.execute("PRAGMA table_info(tbl_staff_accounts)").fetchall()]
-        if 'is_active' not in cols_staff:
-            cursor.execute("ALTER TABLE tbl_staff_accounts ADD COLUMN is_active INTEGER DEFAULT 1")
-        if 'last_active' not in cols_staff:
-            cursor.execute("ALTER TABLE tbl_staff_accounts ADD COLUMN last_active DATETIME")
+            cols_staff = [col[1] for col in cursor.execute("PRAGMA table_info(tbl_staff_accounts)").fetchall()]
+            if 'is_active' not in cols_staff:
+                try: cursor.execute("ALTER TABLE tbl_staff_accounts ADD COLUMN is_active INTEGER DEFAULT 1")
+                except Exception: pass
+            if 'last_active' not in cols_staff:
+                try: cursor.execute("ALTER TABLE tbl_staff_accounts ADD COLUMN last_active DATETIME")
+                except Exception: pass
 
-        cols_mgr = [col[1] for col in cursor.execute("PRAGMA table_info(tbl_managers)").fetchall()]
-        if 'whatsapp_orders_enabled' not in cols_mgr:
-            cursor.execute("ALTER TABLE tbl_managers ADD COLUMN whatsapp_orders_enabled INTEGER DEFAULT 1")
-        if 'price_mandatory' not in cols_mgr:
-            cursor.execute("ALTER TABLE tbl_managers ADD COLUMN price_mandatory INTEGER DEFAULT 1")
-        if 'bulk_upload_enabled' not in cols_mgr:
-            cursor.execute("ALTER TABLE tbl_managers ADD COLUMN bulk_upload_enabled INTEGER DEFAULT 1")
-        if 'show_price' not in cols_mgr:
-            cursor.execute("ALTER TABLE tbl_managers ADD COLUMN show_price INTEGER DEFAULT 1")
-        if 'secure_url_mode' not in cols_mgr:
-            cursor.execute("ALTER TABLE tbl_managers ADD COLUMN secure_url_mode INTEGER DEFAULT 0")
-        if 'qr_image_url' not in cols_mgr:
-            cursor.execute("ALTER TABLE tbl_managers ADD COLUMN qr_image_url TEXT")
+            cols_mgr = [col[1] for col in cursor.execute("PRAGMA table_info(tbl_managers)").fetchall()]
+            if 'whatsapp_orders_enabled' not in cols_mgr:
+                try: cursor.execute("ALTER TABLE tbl_managers ADD COLUMN whatsapp_orders_enabled INTEGER DEFAULT 1")
+                except Exception: pass
+            if 'price_mandatory' not in cols_mgr:
+                try: cursor.execute("ALTER TABLE tbl_managers ADD COLUMN price_mandatory INTEGER DEFAULT 1")
+                except Exception: pass
+            if 'bulk_upload_enabled' not in cols_mgr:
+                try: cursor.execute("ALTER TABLE tbl_managers ADD COLUMN bulk_upload_enabled INTEGER DEFAULT 1")
+                except Exception: pass
+            if 'show_price' not in cols_mgr:
+                try: cursor.execute("ALTER TABLE tbl_managers ADD COLUMN show_price INTEGER DEFAULT 1")
+                except Exception: pass
+            if 'secure_url_mode' not in cols_mgr:
+                try: cursor.execute("ALTER TABLE tbl_managers ADD COLUMN secure_url_mode INTEGER DEFAULT 0")
+                except Exception: pass
+            if 'qr_image_url' not in cols_mgr:
+                try: cursor.execute("ALTER TABLE tbl_managers ADD COLUMN qr_image_url TEXT")
+                except Exception: pass
 
-        # Create tbl_customers table if not exists
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS tbl_customers (
-                customer_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                manager_id INTEGER NOT NULL,
-                customer_name TEXT NOT NULL,
-                phone_number TEXT NOT NULL,
-                email TEXT,
-                pin_hash TEXT NOT NULL,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                last_login DATETIME DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY(manager_id) REFERENCES tbl_managers(manager_id) ON DELETE CASCADE,
-                UNIQUE(manager_id, phone_number)
-            )
-        ''')
+            # Create tbl_customers table if not exists
+            try:
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS tbl_customers (
+                        customer_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        manager_id INTEGER NOT NULL,
+                        customer_name TEXT NOT NULL,
+                        phone_number TEXT NOT NULL,
+                        email TEXT,
+                        pin_hash TEXT NOT NULL,
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        last_login DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY(manager_id) REFERENCES tbl_managers(manager_id) ON DELETE CASCADE,
+                        UNIQUE(manager_id, phone_number)
+                    )
+                ''')
+            except Exception: pass
 
-        cols_orders = [col[1] for col in cursor.execute("PRAGMA table_info(tbl_orders)").fetchall()]
-        if 'customer_email' not in cols_orders:
-            cursor.execute("ALTER TABLE tbl_orders ADD COLUMN customer_email TEXT")
-        if 'customer_pin' not in cols_orders:
-            cursor.execute("ALTER TABLE tbl_orders ADD COLUMN customer_pin TEXT")
+            cols_orders = [col[1] for col in cursor.execute("PRAGMA table_info(tbl_orders)").fetchall()]
+            if 'customer_email' not in cols_orders:
+                try: cursor.execute("ALTER TABLE tbl_orders ADD COLUMN customer_email TEXT")
+                except Exception: pass
+            if 'customer_pin' not in cols_orders:
+                try: cursor.execute("ALTER TABLE tbl_orders ADD COLUMN customer_pin TEXT")
+                except Exception: pass
 
-        db.commit()
+            cols_visitor = [col[1] for col in cursor.execute("PRAGMA table_info(tbl_visitor_sessions)").fetchall()]
+            if 'visited_url' not in cols_visitor:
+                try: cursor.execute("ALTER TABLE tbl_visitor_sessions ADD COLUMN visited_url TEXT")
+                except Exception: pass
+
+            db.commit()
+        except Exception as e:
+            print(f"Database migration note: {e}")
 
 
 def close_connection(exception):

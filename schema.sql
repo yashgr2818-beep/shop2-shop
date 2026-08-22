@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS tbl_visitor_sessions (
     session_token TEXT UNIQUE NOT NULL,
     ip_address TEXT,
     user_agent TEXT,
+    visited_url TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     expires_at DATETIME NOT NULL,
     FOREIGN KEY (manager_id) REFERENCES tbl_managers(manager_id) ON DELETE CASCADE

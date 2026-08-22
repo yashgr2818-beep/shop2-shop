@@ -55,7 +55,8 @@ def create_app(test_config=None):
     app.jinja_env.globals['image_url'] = image_url_filter
 
     # Blocked IPs in-memory cache to eliminate redundant database queries on every request
-    _blocked_cache = {'ips': set(), 'expiry': 0}
+    _blocked_cache = {'ips': {}, 'expiry': 0}
+    app.config['BLOCKED_CACHE'] = _blocked_cache
 
     @app.before_request
     def check_blocked_ip():
@@ -68,14 +69,15 @@ def create_app(test_config=None):
         if now > _blocked_cache['expiry']:
             try:
                 db = get_db()
-                rows = db.execute('SELECT ip_address FROM tbl_blocked_ips').fetchall()
-                _blocked_cache['ips'] = {r['ip_address'] for r in rows}
-                _blocked_cache['expiry'] = now + 60.0  # Cache for 60 seconds
+                rows = db.execute('SELECT ip_address, reason FROM tbl_blocked_ips').fetchall()
+                _blocked_cache['ips'] = {r['ip_address']: (r['reason'] or 'Administrative Security Ban') for r in rows}
+                _blocked_cache['expiry'] = now + 30.0  # Cache for 30 seconds
             except Exception:
                 pass
 
         if client_ip in _blocked_cache['ips']:
-            return render_template('403.html', ip_address=client_ip), 403
+            ban_reason = _blocked_cache['ips'].get(client_ip) or 'Administrative Security Ban'
+            return render_template('403.html', ip_address=client_ip, ban_reason=ban_reason), 403
 
     @app.after_request
     def set_security_and_caching_headers(response):
