@@ -97,6 +97,7 @@ def upload_shop_qr_to_cloudinary(shop_slug, target_url):
                 folder="qrs",
                 public_id=f"qr_{clean_slug}",
                 overwrite=True,
+                invalidate=True,
                 resource_type="image"
             )
             secure_url = res.get('secure_url') or res.get('url')

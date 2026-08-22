@@ -1002,6 +1002,41 @@ def reports():
         ORDER BY total_views DESC, total_ordered DESC
     ''', (manager_id,)).fetchall()
 
+    # QR Scan Analytics & Visitor Sessions for Sales & Activity Reports
+    now_str = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+    today   = datetime.utcnow().strftime('%Y-%m-%d')
+
+    visitor_stats = db.execute('''
+        SELECT
+            COUNT(*) AS total_scans,
+            SUM(CASE WHEN expires_at > ? THEN 1 ELSE 0 END) AS active_visitors,
+            SUM(CASE WHEN DATE(created_at) = ? THEN 1 ELSE 0 END) AS today_scans
+        FROM tbl_visitor_sessions
+        WHERE manager_id = ?
+    ''', (now_str, today, manager_id)).fetchone()
+
+    total_scans     = visitor_stats['total_scans']    or 0
+    active_visitors = visitor_stats['active_visitors'] or 0
+    today_scans     = visitor_stats['today_scans']    or 0
+
+    raw_scans = db.execute('''
+        SELECT visit_id, session_token, ip_address, user_agent, created_at, expires_at,
+               CASE WHEN expires_at > ? THEN 'Active' ELSE 'Expired' END as status
+        FROM tbl_visitor_sessions
+        WHERE manager_id = ?
+        ORDER BY visit_id DESC LIMIT 50
+    ''', (now_str, manager_id)).fetchall()
+
+    recent_scans = [{
+        'visit_id':       s['visit_id'],
+        'session_token':  (s['session_token'][:8] + '...') if s['session_token'] else 'N/A',
+        'ip_address':     s['ip_address'] or '127.0.0.1',
+        'device_info':    parse_user_agent(s['user_agent']),
+        'user_agent_raw': s['user_agent'] or '',
+        'created_at':     s['created_at'],
+        'status':         s['status'],
+    } for s in raw_scans]
+
     return render_template(
         'manager/reports.html',
         manager=manager,
@@ -1010,6 +1045,10 @@ def reports():
         top_products=top_products,
         top_views=top_views,
         product_performance=product_performance,
+        total_scans=total_scans,
+        active_visitors=active_visitors,
+        today_scans=today_scans,
+        recent_scans=recent_scans,
     )
 
 

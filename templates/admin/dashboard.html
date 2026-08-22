@@ -145,9 +145,8 @@
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-slate-500">{{ manager.email }}</td>
                             <td class="px-6 py-4 whitespace-nowrap">
-                                {% set base_net_url = "http://" + (local_ip|default("127.0.0.1")) + ":5000" %}
-                                <a href="{{ base_net_url }}/shop/{{ manager.shop_slug }}" target="_blank"
-                                   class="text-blue-500 hover:underline" onclick="event.stopPropagation()">/{{ manager.shop_slug }}</a>
+                                <a href="{{ url_for('shop.catalog', shop_slug=manager.shop_slug) }}" target="_blank"
+                                   class="text-blue-500 hover:underline font-mono" onclick="event.stopPropagation()">/{{ manager.shop_slug }}</a>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
                                 {% set mgr_products = products_by_manager.get(manager['manager_id'], []) %}

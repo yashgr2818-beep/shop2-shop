@@ -23,8 +23,10 @@ with app.app_context():
     
     # ── 1. PUBLISH ALL QR CODES TO CLOUDINARY IN 'qrs' FOLDER ──────────────
     print("=== 1. SYNCING ALL SHOP QR CODES TO CLOUDINARY (folder: 'qrs') ===")
+    custom_url = sys.argv[1].strip() if len(sys.argv) > 1 and sys.argv[1].strip().startswith(('http://', 'https://')) else None
+    base_url = custom_url or get_shop_base_url()
+    print(f"  Target Online Render Base URL : {base_url}")
     managers = db.execute('SELECT manager_id, shop_name, shop_slug, qr_image_url FROM tbl_managers').fetchall()
-    base_url = get_shop_base_url()
     
     for m in managers:
         slug = m['shop_slug']

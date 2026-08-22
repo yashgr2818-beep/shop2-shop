@@ -113,20 +113,32 @@ import io
 
 def get_shop_base_url(request=None):
     """Determines canonical shop base URL considering Render, reverse proxies, custom domains, or local host."""
-    render_url = os.environ.get('RENDER_EXTERNAL_URL')
-    if render_url and render_url.strip():
-        return render_url.rstrip('/')
-    
+    # 1. Prioritize configured environment variables
+    for env_key in ('RENDER_EXTERNAL_URL', 'RENDER_URL', 'APP_URL', 'BASE_URL', 'SERVER_NAME'):
+        val = os.environ.get(env_key)
+        if val and val.strip():
+            url = val.strip().rstrip('/')
+            if not url.startswith(('http://', 'https://')):
+                url = 'https://' + url
+            return url
+
+    # 2. Check active HTTP request headers (Render / Cloudflare / Proxy / Direct)
     if request:
         proto = request.headers.get('X-Forwarded-Proto', request.scheme or 'http')
         host = request.headers.get('X-Forwarded-Host', request.host)
         if host:
-            # Force https on Render or Cloudflare domains
-            if 'onrender.com' in host or 'render.com' in host:
+            # Force https on Render, Cloudflare, or production domains
+            if 'onrender.com' in host or 'render.com' in host or not host.startswith(('127.0.0.1', 'localhost', '192.168.', '10.', '172.')):
                 proto = 'https'
             return f"{proto}://{host}".rstrip('/')
         return request.host_url.rstrip('/')
-        
+
+    # 3. Check if running inside Render environment without active request
+    if os.environ.get('RENDER') or os.environ.get('RENDER_SERVICE_NAME'):
+        service_name = os.environ.get('RENDER_SERVICE_NAME', 'qr-shop-catalog')
+        return f"https://{service_name}.onrender.com"
+
+    # 4. Fallback to local network IP for offline local testing
     host_ip = get_local_ip()
     return f"http://{host_ip}:5000"
 

@@ -56,7 +56,7 @@
 
         <div class="relative group cursor-pointer" onclick="openPrintModal()">
             <div class="p-3 bg-white border-2 border-slate-100 rounded-2xl shadow-md group-hover:shadow-lg transition-all group-hover:scale-105">
-                <img src="{{ manager.qr_image_url or url_for('shop.shop_qr_image', shop_slug=manager.shop_slug) }}" alt="Shop QR Code" class="w-44 h-44 object-contain">
+                <img src="{{ url_for('shop.shop_qr_image', shop_slug=manager.shop_slug) }}" alt="Shop QR Code" class="w-44 h-44 object-contain">
             </div>
             <div class="absolute inset-0 bg-black/40 rounded-2xl opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-white text-xs font-bold gap-1">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
@@ -80,7 +80,7 @@
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>
                     <span id="copyBtnText">Copy Link</span>
                 </button>
-                <a href="{{ manager.qr_image_url or url_for('shop.shop_qr_image', shop_slug=manager.shop_slug) }}" download="{{ manager.shop_slug }}-qr.png" class="flex items-center justify-center gap-1.5 py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-all border border-slate-200">
+                <a href="{{ url_for('shop.shop_qr_image', shop_slug=manager.shop_slug) }}" download="{{ manager.shop_slug }}-qr.png" class="flex items-center justify-center gap-1.5 py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-all border border-slate-200">
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
                     Download QR
                 </a>
@@ -178,7 +178,7 @@
                     <span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
                     Active Visitors
                 </span>
-                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">Live 15m</span>
+                <a href="{{ url_for('manager.reports') }}#visitor-activity" class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 hover:bg-emerald-200 transition">View Full Logs &rarr;</a>
             </div>
             <div class="mt-4 mb-2">
                 <p class="text-4xl font-black text-emerald-900">{{ active_visitors|default(0) }}</p>
@@ -201,84 +201,6 @@
             </div>
         </div>
     </div>
-</div>
-
-<!-- QR Scan Analytics & Visitor Activity Log -->
-<div class="glass rounded-2xl shadow-sm overflow-hidden mb-8 bg-white border border-slate-200/80">
-    <div class="px-6 py-4 border-b border-slate-200 bg-slate-50/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-        <div class="flex items-center gap-2">
-            <div class="w-7 h-7 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-sm">📊</div>
-            <div>
-                <h3 class="text-base font-bold text-slate-800">QR Scan Analytics & Visitor Activity</h3>
-                <p class="text-xs text-slate-500">Real-time visitor logs, client IP addresses, and device signatures.</p>
-            </div>
-        </div>
-        <div class="flex items-center gap-2 text-xs text-slate-500">
-            <span class="inline-flex items-center gap-1 font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
-                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                {{ active_visitors }} Active Now
-            </span>
-            <span class="font-medium">Total: {{ total_scans }}</span>
-        </div>
-    </div>
-
-    {% if recent_scans %}
-    <div class="overflow-x-auto">
-        <table class="min-w-full divide-y divide-slate-200 text-sm">
-            <thead class="bg-slate-50">
-                <tr>
-                    <th scope="col" class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Time</th>
-                    <th scope="col" class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Device & Browser</th>
-                    <th scope="col" class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Client IP Address</th>
-                    <th scope="col" class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Session Identifier</th>
-                    <th scope="col" class="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Session Status</th>
-                </tr>
-            </thead>
-            <tbody class="bg-white divide-y divide-slate-100">
-                {% for scan in recent_scans %}
-                <tr class="hover:bg-slate-50/80 transition-colors">
-                    <td class="px-6 py-3.5 whitespace-nowrap text-slate-700 font-medium text-xs">
-                        {{ scan.created_at }}
-                    </td>
-                    <td class="px-6 py-3.5 whitespace-nowrap">
-                        <span class="font-semibold text-slate-800 text-xs bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200/60 inline-flex items-center gap-1">
-                            {{ scan.device_info }}
-                        </span>
-                    </td>
-                    <td class="px-6 py-3.5 whitespace-nowrap">
-                        <span class="font-mono text-xs text-blue-700 bg-blue-50 px-2.5 py-1 rounded-md border border-blue-100">
-                            {{ scan.ip_address }}
-                        </span>
-                    </td>
-                    <td class="px-6 py-3.5 whitespace-nowrap">
-                        <span class="font-mono text-[11px] text-slate-500 bg-slate-50 px-2 py-0.5 rounded border border-slate-200">
-                            {{ scan.session_token }}
-                        </span>
-                    </td>
-                    <td class="px-6 py-3.5 whitespace-nowrap text-right">
-                        {% if scan.status == 'Active' %}
-                            <span class="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 inline-flex items-center gap-1.5 shadow-sm">
-                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
-                                Active (Live)
-                            </span>
-                        {% else %}
-                            <span class="px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-500 border border-slate-200">
-                                Expired
-                            </span>
-                        {% endif %}
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-    {% else %}
-    <div class="px-6 py-12 text-center text-slate-400 text-sm">
-        <div class="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-3 text-xl">📱</div>
-        <p class="font-semibold text-slate-700">No QR Scans or Visits Yet</p>
-        <p class="text-xs text-slate-500 mt-1 max-w-sm mx-auto">Share your QR code with customers or open your store link to start tracking live visitor analytics.</p>
-    </div>
-    {% endif %}
 </div>
 
 <!-- Product Table -->
@@ -441,7 +363,7 @@
 <script>
 const shopUrl = "{{ shop_url }}";
 const shopName = "{{ manager.shop_name }}";
-const qrImgSrc = "{{ manager.qr_image_url or url_for('shop.shop_qr_image', shop_slug=manager.shop_slug) }}";
+const qrImgSrc = "{{ url_for('shop.shop_qr_image', shop_slug=manager.shop_slug) }}";
 
 function copyShopLink() {
     navigator.clipboard.writeText(shopUrl).then(() => {
@@ -586,7 +508,7 @@ function closeImageModal() {
 
         <div class="py-5 text-center">
             <div class="p-3 bg-white border-2 border-slate-100 rounded-2xl shadow-inner inline-block mb-3">
-                <img src="{{ manager.qr_image_url or url_for('shop.shop_qr_image', shop_slug=manager.shop_slug) }}" alt="QR Code" class="w-36 h-36 mx-auto object-contain">
+                <img src="{{ url_for('shop.shop_qr_image', shop_slug=manager.shop_slug) }}" alt="QR Code" class="w-36 h-36 mx-auto object-contain">
             </div>
             <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200 flex items-center justify-between gap-2 text-xs">
                 <span class="font-mono text-slate-600 truncate text-left">{{ shop_url }}</span>
@@ -606,7 +528,7 @@ function closeImageModal() {
                     <svg class="w-4 h-4 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
                     Print Standee
                 </button>
-                <a href="{{ manager.qr_image_url or url_for('shop.shop_qr_image', shop_slug=manager.shop_slug) }}" download="{{ manager.shop_slug }}-qr.png" class="flex items-center justify-center gap-1.5 py-2.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold transition-all border border-slate-200">
+                <a href="{{ url_for('shop.shop_qr_image', shop_slug=manager.shop_slug) }}" download="{{ manager.shop_slug }}-qr.png" class="flex items-center justify-center gap-1.5 py-2.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold transition-all border border-slate-200">
                     <svg class="w-4 h-4 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
                     Save QR (PNG)
                 </a>
@@ -631,7 +553,7 @@ function closeImageModal() {
             </div>
 
             <div class="my-5 p-4 bg-white rounded-2xl border-2 border-slate-900/10 shadow-lg inline-block">
-                <img src="{{ manager.qr_image_url or url_for('shop.shop_qr_image', shop_slug=manager.shop_slug) }}" alt="Store QR Code" class="w-56 h-56 mx-auto object-contain">
+                <img src="{{ url_for('shop.shop_qr_image', shop_slug=manager.shop_slug) }}" alt="Store QR Code" class="w-56 h-56 mx-auto object-contain">
             </div>
 
             <div class="space-y-2 mt-2">

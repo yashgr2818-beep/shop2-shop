@@ -79,6 +79,10 @@ def create_app(test_config=None):
     def root_scan(shop_slug):
         return redirect(url_for('shop.scan', shop_slug=shop_slug))
 
+    @app.route('/<shop_slug>/qr.png')
+    def root_shop_qr(shop_slug):
+        return redirect(url_for('shop.shop_qr_image', shop_slug=shop_slug))
+
     return app
 
 # WSGI Application instance for Gunicorn / Render
